@@ -543,7 +543,7 @@ export class DeckSatelliteTracker {
         targetZoom = explicitZoom;
         console.log(`🔍 Using explicit zoom: ${explicitZoom}`);
       } else {
-        targetZoom = preserveZoom ? this.map.getZoom() : Math.max(this.map.getZoom(), 4);
+        targetZoom = preserveZoom ? this.map.getZoom() : 5; // Always zoom to level 5 when selecting a satellite
       }
       
       this.map.flyTo({
@@ -662,12 +662,13 @@ export class DeckSatelliteTracker {
   private startTracking() {
     console.log('🚀 Starting satellite tracking with', this.satellites.size, 'satellites');
     let lastUpdate = 0;
-    const UPDATE_INTERVAL = 1000; // Update every 1 second instead of every frame
+    const UPDATE_INTERVAL = 100; // Calculate TLE positions at 10fps (every 100ms)
     
     const updatePositions = () => {
       const now = Date.now();
       
       if (now - lastUpdate >= UPDATE_INTERVAL) {
+        // Calculate real-time orbital positions for all satellites
         for (const [, sat] of this.satellites) {
           const position = this.calculateSatellitePosition(sat.tle1, sat.tle2);
           sat.position = new LngLat(position.longitude, position.latitude);
@@ -686,21 +687,22 @@ export class DeckSatelliteTracker {
     updatePositions();
   }
 
+
   private updateFollowing() {
     if (this.followingSatellite && !this.isZooming) {
       const satellite = this.satellites.get(this.followingSatellite);
       if (satellite) {
         const currentCenter = this.map.getCenter();
-        const newLng = satellite.position.lng;
-        const newLat = satellite.position.lat;
-        
-        const threshold = 0.001;
-        const deltaLng = Math.abs(currentCenter.lng - newLng);
-        const deltaLat = Math.abs(currentCenter.lat - newLat);
+        const threshold = 0.0001; // Small threshold for smooth updates
+        const deltaLng = Math.abs(currentCenter.lng - satellite.position.lng);
+        const deltaLat = Math.abs(currentCenter.lat - satellite.position.lat);
         
         if (deltaLng > threshold || deltaLat > threshold) {
-          this.map.jumpTo({
-            center: [newLng, newLat]
+          // Use easeTo for smooth camera movement at 25fps
+          this.map.easeTo({
+            center: [satellite.position.lng, satellite.position.lat],
+            duration: 40, // 40ms for 25fps
+            easing: (t) => t // Linear easing for smooth continuous movement
           });
         }
       }
@@ -790,7 +792,7 @@ export class DeckSatelliteTracker {
       
       this.map.flyTo({
         center: [satellite.position.lng, satellite.position.lat],
-        zoom: 6,
+        zoom: 5, // Zoom to level 5 when selecting from search
         duration: 2000,
         essential: true
       });
