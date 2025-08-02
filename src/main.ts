@@ -1,24 +1,28 @@
 import { Map as MapLibreMap, NavigationControl, AttributionControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { SatelliteTracker } from './satellite-tracker';
+import { DeckSatelliteTracker } from './deck-satellite-tracker';
+import { URLState } from './url-state';
 
 class SatelliteTracker3D {
   private map!: MapLibreMap;
-  private satelliteTracker!: SatelliteTracker;
+  private satelliteTracker!: DeckSatelliteTracker;
   private isDayMode = true;
+  private urlState = new URLState();
+  private initialZoom: number;
 
   constructor() {
     this.initializeMap();
-    this.satelliteTracker = new SatelliteTracker(this.map);
+    this.satelliteTracker = new DeckSatelliteTracker(this.map);
+    this.satelliteTracker.setOnTrackingChangeCallback(() => this.updateURL());
     this.setupEventListeners();
     this.setupURLSharing();
     this.startTracking();
   }
 
   private initializeMap() {
-    // Get initial view from URL parameters (only zoom)
-    const urlParams = new URLSearchParams(window.location.search);
-    const initialZoom = parseFloat(urlParams.get('zoom') || '2');
+    // Get initial view from URL parameters (zoom and satellite tracking)
+    this.initialZoom = this.urlState.getInitialZoom();
+    console.log(`🔍 Initial zoom from URL: ${this.initialZoom}`);
     
     this.map = new MapLibreMap({
       container: 'map',
@@ -28,16 +32,34 @@ class SatelliteTracker3D {
         layers: []
       },
       center: [0, 0], // Always start at global view
-      zoom: initialZoom,
+      zoom: this.initialZoom,
       attributionControl: false // Disable default attribution control to avoid duplicates
     });
 
     this.map.addControl(new NavigationControl(), 'top-right');
-    this.map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
+    
+    // Add attribution control and ensure it's collapsed by default
+    const attributionControl = new AttributionControl({ compact: true });
+    this.map.addControl(attributionControl, 'bottom-right');
+    
+    // Force collapse the attribution after it's added with a slight delay
+    setTimeout(() => {
+      const attributionContainer = document.querySelector('.maplibregl-ctrl-attrib');
+      if (attributionContainer) {
+        attributionContainer.classList.remove('maplibregl-compact-show');
+        attributionContainer.classList.add('maplibregl-compact');
+      }
+    }, 100);
     
     // Initialize with day basemap
     this.map.on('load', () => {
+      console.log(`📍 Map loaded with zoom: ${this.map.getZoom()}`);
       this.addDayBasemap();
+    });
+    
+    // Debug zoom changes
+    this.map.on('zoom', () => {
+      console.log(`🔍 Zoom changed to: ${this.map.getZoom()}`);
     });
   }
 
@@ -45,23 +67,23 @@ class SatelliteTracker3D {
     // Remove night basemap if it exists
     this.removeNightBasemap();
     
-    // Add Geoportail France orthophotos as day basemap source and layer
-    if (!this.map.getSource('geoportail-orthos')) {
-      this.map.addSource('geoportail-orthos', {
+    // Add Esri World Imagery as day basemap source and layer
+    if (!this.map.getSource('esri-world-imagery')) {
+      this.map.addSource('esri-world-imagery', {
         type: 'raster',
-        tiles: ['https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}'],
+        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
         tileSize: 256,
-        minzoom: 2,
+        minzoom: 1,
         maxzoom: 19,
-        attribution: '<a target="_blank" href="https://www.geoportail.gouv.fr/">Geoportail France</a>'
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
       });
     }
     
-    if (!this.map.getLayer('geoportail-orthos')) {
+    if (!this.map.getLayer('esri-world-imagery')) {
       this.map.addLayer({
-        id: 'geoportail-orthos',
+        id: 'esri-world-imagery',
         type: 'raster',
-        source: 'geoportail-orthos'
+        source: 'esri-world-imagery'
       }, this.getFirstSatelliteLayerId());
     }
   }
@@ -92,11 +114,11 @@ class SatelliteTracker3D {
   }
 
   private removeDayBasemap() {
-    if (this.map.getLayer('geoportail-orthos')) {
-      this.map.removeLayer('geoportail-orthos');
+    if (this.map.getLayer('esri-world-imagery')) {
+      this.map.removeLayer('esri-world-imagery');
     }
-    if (this.map.getSource('geoportail-orthos')) {
-      this.map.removeSource('geoportail-orthos');
+    if (this.map.getSource('esri-world-imagery')) {
+      this.map.removeSource('esri-world-imagery');
     }
   }
 
@@ -148,7 +170,7 @@ class SatelliteTracker3D {
   }
 
   private toggleStarlinkVisibility() {
-    this.satelliteTracker.toggleTrails();
+    this.satelliteTracker.toggleOrbits();
   }
 
   private startTracking() {
@@ -156,37 +178,51 @@ class SatelliteTracker3D {
       // Wait a bit for the basemap to be added, then initialize satellites
       setTimeout(() => {
         this.satelliteTracker.initialize();
+        
+        // Restore satellite tracking from URL if specified
+        const satelliteToTrack = this.urlState.getInitialSatellite();
+        if (satelliteToTrack) {
+          // Give a bit more time for satellites to be loaded
+          setTimeout(() => {
+            console.log(`🔄 Attempting to follow satellite from URL: ${satelliteToTrack}`);
+            
+            // Check if satellite exists before trying to follow it
+            const satellites = this.satelliteTracker.getSatellites();
+            if (satellites.has(satelliteToTrack)) {
+              // Preserve the zoom level from URL when following satellite
+              this.satelliteTracker.followSatellite(satelliteToTrack, false, this.initialZoom);
+              console.log(`✅ Successfully started following: ${satelliteToTrack} with zoom ${this.initialZoom}`);
+            } else {
+              console.warn(`⚠️ Satellite not found: ${satelliteToTrack}. Available satellites:`, Array.from(satellites.keys()));
+              // Remove invalid satellite from URL
+              this.urlState.removeInvalidSatellite();
+            }
+            
+            // End initialization phase after satellite tracking is set up
+            setTimeout(() => {
+              this.urlState.setInitializing(false);
+              console.log('✅ Initialization complete, URL updates enabled');
+            }, 500);
+          }, 1000);
+        } else {
+          // No satellite to track, end initialization immediately
+          this.urlState.setInitializing(false);
+        }
+        
         this.updateUI();
         setInterval(() => this.updateUI(), 5000);
-      }, 100);
+      }, 500); // Increased delay to ensure proper initialization
     });
   }
 
-  private setupURLSharing() {
-    // Update URL when map view changes (only zoom)
-    const updateURL = () => {
-      const zoom = this.map.getZoom();
-      
-      const url = new URL(window.location.href);
-      // Remove x and y parameters if they exist
-      url.searchParams.delete('x');
-      url.searchParams.delete('y');
-      url.searchParams.set('zoom', zoom.toFixed(2));
-      
-      // Update URL without triggering page reload
-      window.history.replaceState({}, '', url.toString());
-    };
+  private updateURL() {
+    const zoom = this.map.getZoom();
+    const followingSatellite = this.satelliteTracker.getFollowingSatellite();
+    this.urlState.updateURL(zoom, followingSatellite);
+  }
 
-    // Update URL when user moves or zooms the map
-    this.map.on('moveend', updateURL);
-    this.map.on('zoomend', updateURL);
-    
-    // Also update URL when satellite tracking moves the map
-    this.map.on('move', () => {
-      // Debounce URL updates during smooth animations
-      clearTimeout((this as any).urlUpdateTimeout);
-      (this as any).urlUpdateTimeout = setTimeout(updateURL, 500);
-    });
+  private setupURLSharing() {
+    this.urlState.setupURLSharing(this.map, () => this.updateURL());
   }
 
   private updateUI() {

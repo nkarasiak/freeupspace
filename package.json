@@ -11,6 +11,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@deck.gl/aggregation-layers": "^9.1.14",
+    "@deck.gl/core": "^9.1.14",
+    "@deck.gl/geo-layers": "^9.1.14",
+    "@deck.gl/layers": "^9.1.14",
+    "@deck.gl/mapbox": "^9.1.14",
+    "@luma.gl/core": "^9.1.9",
     "maplibre-gl": "^4.1.1",
     "satellite.js": "^5.0.0"
   },

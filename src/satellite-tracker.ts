@@ -20,9 +20,7 @@ export interface SatelliteData {
 export class SatelliteTracker {
   private map: MapLibreMap;
   private satellites: Map<string, SatelliteData> = new Map();
-  private satelliteTrails: Map<string, LngLat[]> = new Map();
   private animationId: number | null = null;
-  private showTrails = false;
   private followingSatellite: string | null = null;
   private isZooming = false;
 
@@ -208,6 +206,11 @@ export class SatelliteTracker {
         tle1: '1 59002U 24001B   25214.30123456  .00005585  00000-0  33949-3 0  9981',
         tle2: '2 59002  53.1001 568.9012 0004678  88.0123 273.3456 15.30000000051111'
       },
+      // Additional Starlink constellation - temporarily disabled for debugging
+      // ...this.generateStarlinkShell1(),
+      // ...this.generateStarlinkShell2(),
+      // ...this.generateStarlinkShell3(),
+      // ...this.generateStarlinkShell4(),
       // Sentinel-1 SAR satellites
       {
         id: 'sentinel-1a',
@@ -308,23 +311,160 @@ export class SatelliteTracker {
     ];
 
     sampleSatellites.forEach(sat => {
-      const position = this.calculateSatellitePosition(sat.tle1, sat.tle2);
-      
-      // Add default dimensions if not specified
-      let dimensions = sat.dimensions;
-      if (!dimensions) {
-        dimensions = this.getDefaultDimensionsForType(sat.type, sat.id);
+      try {
+        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2);
+        
+        // Validate position data
+        if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+          console.error(`❌ Invalid position for satellite ${sat.id}: lng=${position.longitude}, lat=${position.latitude}, alt=${position.altitude}`);
+          console.error(`TLE1: ${sat.tle1}`);
+          console.error(`TLE2: ${sat.tle2}`);
+          return; // Skip this satellite
+        }
+        
+        // Add default dimensions if not specified
+        let dimensions = sat.dimensions;
+        if (!dimensions) {
+          dimensions = this.getDefaultDimensionsForType(sat.type, sat.id);
+        }
+        
+        this.satellites.set(sat.id, {
+          ...sat,
+          dimensions,
+          position: new LngLat(position.longitude, position.latitude),
+          altitude: position.altitude,
+          velocity: position.velocity
+        });
+        
+        console.log(`✅ Successfully loaded satellite ${sat.id} at (${position.longitude.toFixed(2)}, ${position.latitude.toFixed(2)})`);
+      } catch (error) {
+        console.error(`❌ Error loading satellite ${sat.id}:`, error);
+        console.error(`TLE1: ${sat.tle1}`);
+        console.error(`TLE2: ${sat.tle2}`);
       }
-      
-      this.satellites.set(sat.id, {
-        ...sat,
-        dimensions,
-        position: new LngLat(position.longitude, position.latitude),
-        altitude: position.altitude,
-        velocity: position.velocity
-      });
     });
   }
+
+  // private generateStarlinkShell1() {
+  //   const satellites = [];
+  //   const baseId = 45000;
+  //   
+  //   // Generate 50 satellites for Shell 1 (reduced for performance and stability)
+  //   for (let i = 0; i < 50; i++) {
+  //     const satId = baseId + i;
+  //     const plane = Math.floor(i / 10);
+  //     const satInPlane = i % 10;
+  //     
+  //     // Based on real Starlink orbital parameters
+  //     const inclination = 53.0534;
+  //     const raan = plane * 36.0; // 10 planes, 36° apart
+  //     const meanAnomaly = satInPlane * 36.0; // Distribute within plane
+  //     const argOfPerigee = 92.4356;
+  //     const eccentricity = 0.0001234;
+  //     const meanMotion = 15.05000000;
+  //     const epochDay = 214.12345678 + i * 0.001;
+  //     
+  //     satellites.push({
+  //       id: `starlink-${satId}`,
+  //       name: `Starlink-${satId}`,
+  //       type: 'communication' as const,
+  //       tle1: `1 ${satId}U 19074A   25${epochDay.toFixed(8)}  .00002182  00000-0  15494-3 0  9999`,
+  //       tle2: `2 ${satId}  ${inclination.toFixed(4)} ${raan.toFixed(4)} ${eccentricity.toFixed(7)}  ${argOfPerigee.toFixed(4)} ${meanAnomaly.toFixed(4)} ${meanMotion.toFixed(8)}270000`,
+  //       dimensions: { length: 2.8, width: 1.4, height: 0.32 }
+  //     });
+  //   }
+  //   return satellites;
+  // }
+
+  // private generateStarlinkShell2() {
+  //   const satellites = [];
+  //   const baseId = 46000;
+  //   
+  //   // Generate 30 satellites for Shell 2
+  //   for (let i = 0; i < 30; i++) {
+  //     const satId = baseId + i;
+  //     const plane = Math.floor(i / 6);
+  //     const satInPlane = i % 6;
+  //     
+  //     const inclination = 53.2000;
+  //     const raan = plane * 72.0; // 5 planes, 72° apart
+  //     const meanAnomaly = satInPlane * 60.0; // Distribute within plane
+  //     const argOfPerigee = 78.9012;
+  //     const eccentricity = 0.0002345;
+  //     const meanMotion = 15.06000000;
+  //     const epochDay = 214.17890123 + i * 0.001;
+  //     
+  //     satellites.push({
+  //       id: `starlink-${satId}`,
+  //       name: `Starlink-${satId}`,
+  //       type: 'communication' as const,
+  //       tle1: `1 ${satId}U 20088A   25${epochDay.toFixed(8)}  .00003456  00000-0  23456-3 0  9994`,
+  //       tle2: `2 ${satId}  ${inclination.toFixed(4)} ${raan.toFixed(4)} ${eccentricity.toFixed(7)}  ${argOfPerigee.toFixed(4)} ${meanAnomaly.toFixed(4)} ${meanMotion.toFixed(8)}180000`,
+  //       dimensions: { length: 2.8, width: 1.4, height: 0.32 }
+  //     });
+  //   }
+  //   return satellites;
+  // }
+
+  // private generateStarlinkShell3() {
+  //   const satellites = [];
+  //   const baseId = 47000;
+  //   
+  //   // Generate 20 satellites for Shell 3 (polar)
+  //   for (let i = 0; i < 20; i++) {
+  //     const satId = baseId + i;
+  //     const plane = Math.floor(i / 4);
+  //     const satInPlane = i % 4;
+  //     
+  //     const inclination = 70.0000;
+  //     const raan = plane * 72.0; // 5 planes, 72° apart
+  //     const meanAnomaly = satInPlane * 90.0; // Distribute within plane
+  //     const argOfPerigee = 95.2100;
+  //     const eccentricity = 0.0001234;
+  //     const meanMotion = 15.17000000;
+  //     const epochDay = 214.21234567 + i * 0.001;
+  //     
+  //     satellites.push({
+  //       id: `starlink-${satId}`,
+  //       name: `Starlink-${satId}`,
+  //       type: 'communication' as const,
+  //       tle1: `1 ${satId}U 22107A   25${epochDay.toFixed(8)}  .00001674  00000-0  12284-3 0  9990`,
+  //       tle2: `2 ${satId}  ${inclination.toFixed(4)} ${raan.toFixed(4)} ${eccentricity.toFixed(7)}  ${argOfPerigee.toFixed(4)} ${meanAnomaly.toFixed(4)} ${meanMotion.toFixed(8)}140000`,
+  //       dimensions: { length: 2.8, width: 1.4, height: 0.32 }
+  //     });
+  //   }
+  //   return satellites;
+  // }
+
+  // private generateStarlinkShell4() {
+  //   const satellites = [];
+  //   const baseId = 48000;
+  //   
+  //   // Generate 10 satellites for Shell 4 (polar)
+  //   for (let i = 0; i < 10; i++) {
+  //     const satId = baseId + i;
+  //     const plane = Math.floor(i / 2);
+  //     const satInPlane = i % 2;
+  //     
+  //     const inclination = 97.6000;
+  //     const raan = plane * 72.0; // 5 planes, 72° apart
+  //     const meanAnomaly = satInPlane * 180.0; // Distribute within plane
+  //     const argOfPerigee = 96.3211;
+  //     const eccentricity = 0.0001567;
+  //     const meanMotion = 15.17000000;
+  //     const epochDay = 214.25678901 + i * 0.001;
+  //     
+  //     satellites.push({
+  //       id: `starlink-${satId}`,
+  //       name: `Starlink-${satId}`,
+  //       type: 'communication' as const,
+  //       tle1: `1 ${satId}U 23001A   25${epochDay.toFixed(8)}  .00004567  00000-0  28901-3 0  9986`,
+  //       tle2: `2 ${satId}  ${inclination.toFixed(4)} ${raan.toFixed(4)} ${eccentricity.toFixed(7)}  ${argOfPerigee.toFixed(4)} ${meanAnomaly.toFixed(4)} ${meanMotion.toFixed(8)}100000`,
+  //       dimensions: { length: 2.8, width: 1.4, height: 0.32 }
+  //     });
+  //   }
+  //   return satellites;
+  // }
 
   private getDefaultDimensionsForType(type: string, satelliteId: string) {
     // Starlink satellites (all generations)
@@ -540,7 +680,7 @@ export class SatelliteTracker {
     ];
   }
 
-  private updateISSIconSize(baseScale: number, satelliteLength?: number) {
+  private updateISSIconSize(baseScale: number, _satelliteLength?: number) {
     this.map.setLayoutProperty('satellites-iss-icon', 'icon-size', this.getISSSizeExpression(baseScale));
   }
 
@@ -964,7 +1104,6 @@ export class SatelliteTracker {
         });
       }
 
-      this.updateTrails();
       this.updateFollowing();
       this.animationId = requestAnimationFrame(updatePositions);
     };
@@ -972,92 +1111,6 @@ export class SatelliteTracker {
     updatePositions();
   }
 
-  toggleTrails() {
-    this.showTrails = !this.showTrails;
-    if (this.showTrails) {
-      this.addTrailsLayer();
-    } else {
-      this.removeTrailsLayer();
-    }
-  }
-
-  private addTrailsLayer() {
-    if (this.map.getSource('satellite-trails')) return;
-
-    this.map.addSource('satellite-trails', {
-      type: 'geojson',
-      data: {
-        type: 'FeatureCollection',
-        features: []
-      }
-    });
-
-    this.map.addLayer({
-      id: 'satellite-trails',
-      type: 'line',
-      source: 'satellite-trails',
-      paint: {
-        'line-color': [
-          'case',
-          ['==', ['get', 'type'], 'scientific'], '#00ff00',
-          ['==', ['get', 'type'], 'communication'], '#0080ff',
-          ['==', ['get', 'type'], 'weather'], '#ff8000',
-          '#ffffff'
-        ],
-        'line-width': 2,
-        'line-opacity': 0.6
-      }
-    });
-  }
-
-  private removeTrailsLayer() {
-    if (this.map.getLayer('satellite-trails')) {
-      this.map.removeLayer('satellite-trails');
-    }
-    if (this.map.getSource('satellite-trails')) {
-      this.map.removeSource('satellite-trails');
-    }
-  }
-
-  private updateTrails() {
-    if (!this.showTrails) return;
-
-    for (const [id, satellite] of this.satellites) {
-      if (!this.satelliteTrails.has(id)) {
-        this.satelliteTrails.set(id, []);
-      }
-      
-      const trail = this.satelliteTrails.get(id)!;
-      trail.push(new LngLat(satellite.position.lng, satellite.position.lat));
-      
-      if (trail.length > 100) {
-        trail.shift();
-      }
-    }
-
-    const trailFeatures = Array.from(this.satelliteTrails.entries()).map(([id, trail]) => {
-      const satellite = this.satellites.get(id)!;
-      return {
-        type: 'Feature' as const,
-        properties: {
-          id,
-          type: satellite.type
-        },
-        geometry: {
-          type: 'LineString' as const,
-          coordinates: trail.map(pos => [pos.lng, pos.lat])
-        }
-      };
-    }).filter(feature => feature.geometry.coordinates.length > 1);
-
-    const source = this.map.getSource('satellite-trails') as any;
-    if (source) {
-      source.setData({
-        type: 'FeatureCollection',
-        features: trailFeatures
-      });
-    }
-  }
 
   private updateFollowing() {
     if (this.followingSatellite && !this.isZooming) {
