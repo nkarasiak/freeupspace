@@ -321,7 +321,7 @@ export class DeckSatelliteTracker {
     console.log(`🎯 Generating icon data. Loaded icons:`, Array.from(this.satelliteIcons.keys()));
 
     // Generate icon data for satellites with loaded icons
-    this.satelliteIcons.forEach((iconMapping, satelliteId) => {
+    this.satelliteIcons.forEach((_, satelliteId) => {
       const satellite = this.satellites.get(satelliteId);
       if (satellite) {
         // ISS shows as image from zoom 0
@@ -354,24 +354,6 @@ export class DeckSatelliteTracker {
     return iconData;
   }
 
-  private getIconSizeForZoom(zoom: number): number {
-    // ISS-specific sizing: 100px at zoom 2, 150px at zoom 5, 200px at zoom 10
-    if (zoom <= 2) {
-      return 100;
-    } else if (zoom <= 5) {
-      // Linear interpolation between zoom 2 (100px) and zoom 5 (150px)
-      const progress = (zoom - 2) / (5 - 2); // 0 to 1
-      return 100 + (progress * 50); // 100 to 150
-    } else if (zoom <= 10) {
-      // Linear interpolation between zoom 5 (150px) and zoom 10 (200px)
-      const progress = (zoom - 5) / (10 - 5); // 0 to 1
-      return 150 + (progress * 50); // 150 to 200
-    } else {
-      // For zoom levels beyond 10, keep growing at same rate
-      const extraZoom = zoom - 10;
-      return 200 + (extraZoom * 10); // 10px per zoom level after 10
-    }
-  }
 
   private getSatelliteImageSize(zoom: number, satelliteWidth: number, satelliteId: string): number {
     // ISS: zoom*width/3 (keeps ISS manageable size)
@@ -460,7 +442,7 @@ export class DeckSatelliteTracker {
         filled: true,
         radiusUnits: 'pixels',
         pickable: true,
-        onClick: (info, event) => {
+        onClick: (info) => {
           console.log('Satellite clicked:', info);
           this.handleSatelliteClick(info);
         }
@@ -483,7 +465,7 @@ export class DeckSatelliteTracker {
             getPosition: (d: any) => d.position,
             getSize: (d: any) => d.size,
             getColor: [255, 255, 255, 255],
-            onClick: (info, event) => {
+            onClick: (info) => {
               console.log(`${satelliteId} clicked:`, info);
               this.handleSatelliteClick(info);
             }

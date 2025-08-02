@@ -8,7 +8,7 @@ class SatelliteTracker3D {
   private satelliteTracker!: DeckSatelliteTracker;
   private isDayMode = true;
   private urlState = new URLState();
-  private initialZoom: number;
+  private initialZoom!: number;
 
   constructor() {
     this.initializeMap();
