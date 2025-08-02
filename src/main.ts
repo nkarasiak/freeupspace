@@ -11,61 +11,110 @@ class SatelliteTracker3D {
     this.initializeMap();
     this.satelliteTracker = new SatelliteTracker(this.map);
     this.setupEventListeners();
+    this.setupURLSharing();
     this.startTracking();
   }
 
   private initializeMap() {
+    // Get initial view from URL parameters (only zoom)
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialZoom = parseFloat(urlParams.get('zoom') || '2');
+    
     this.map = new MapLibreMap({
       container: 'map',
-      style: this.getDayStyle(),
-      center: [0, 0],
-      zoom: 2
+      style: {
+        version: 8,
+        sources: {},
+        layers: []
+      },
+      center: [0, 0], // Always start at global view
+      zoom: initialZoom
     });
 
     this.map.addControl(new NavigationControl(), 'top-right');
     this.map.addControl(new AttributionControl({ compact: true }), 'bottom-right');
+    
+    // Initialize with day basemap
+    this.map.on('load', () => {
+      this.addDayBasemap();
+    });
   }
 
-  private getDayStyle() {
-    return {
-      version: 8 as const,
-      sources: {
-        'osm': {
-          type: 'raster' as const,
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap contributors'
-        }
-      },
-      layers: [
-        {
-          id: 'osm',
-          type: 'raster' as const,
-          source: 'osm'
-        }
-      ]
-    };
+  private addDayBasemap() {
+    // Remove night basemap if it exists
+    this.removeNightBasemap();
+    
+    // Add day basemap source and layer
+    if (!this.map.getSource('osm')) {
+      this.map.addSource('osm', {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors'
+      });
+    }
+    
+    if (!this.map.getLayer('osm')) {
+      this.map.addLayer({
+        id: 'osm',
+        type: 'raster',
+        source: 'osm'
+      }, this.getFirstSatelliteLayerId());
+    }
   }
 
-  private getNightStyle() {
-    return {
-      version: 8 as const,
-      sources: {
-        'dark': {
-          type: 'raster' as const,
-          tiles: ['https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© CARTO'
-        }
-      },
-      layers: [
-        {
-          id: 'dark',
-          type: 'raster' as const,
-          source: 'dark'
-        }
-      ]
-    };
+  private addNightBasemap() {
+    // Remove day basemap if it exists
+    this.removeDayBasemap();
+    
+    // Add night basemap source and layer
+    if (!this.map.getSource('nasa-night')) {
+      this.map.addSource('nasa-night', {
+        type: 'raster',
+        tiles: ['https://map1.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_CityLights_2012/default/{time}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg'],
+        tileSize: 256,
+        minzoom: 1,
+        maxzoom: 8,
+        attribution: 'Imagery provided by services from the Global Imagery Browse Services (GIBS), operated by the NASA/GSFC/Earth Science Data and Information System (<a href="https://earthdata.nasa.gov">ESDIS</a>) with funding provided by NASA/HQ.'
+      });
+    }
+    
+    if (!this.map.getLayer('nasa-night')) {
+      this.map.addLayer({
+        id: 'nasa-night',
+        type: 'raster',
+        source: 'nasa-night'
+      }, this.getFirstSatelliteLayerId());
+    }
+  }
+
+  private removeDayBasemap() {
+    if (this.map.getLayer('osm')) {
+      this.map.removeLayer('osm');
+    }
+    if (this.map.getSource('osm')) {
+      this.map.removeSource('osm');
+    }
+  }
+
+  private removeNightBasemap() {
+    if (this.map.getLayer('nasa-night')) {
+      this.map.removeLayer('nasa-night');
+    }
+    if (this.map.getSource('nasa-night')) {
+      this.map.removeSource('nasa-night');
+    }
+  }
+
+  private getFirstSatelliteLayerId(): string | undefined {
+    // Return the first satellite layer ID to ensure basemap layers are below satellites
+    const satelliteLayers = ['satellites-main', 'satellites-iss-icon', 'satellites-starlink-icon', 'satellites-sentinel-icon'];
+    for (const layerId of satelliteLayers) {
+      if (this.map.getLayer(layerId)) {
+        return layerId;
+      }
+    }
+    return undefined;
   }
 
   private setupEventListeners() {
@@ -80,8 +129,11 @@ class SatelliteTracker3D {
 
   private toggleBasemap() {
     this.isDayMode = !this.isDayMode;
-    const style = this.isDayMode ? this.getDayStyle() : this.getNightStyle();
-    this.map.setStyle(style);
+    if (this.isDayMode) {
+      this.addDayBasemap();
+    } else {
+      this.addNightBasemap();
+    }
   }
 
   private focusOnISS() {
@@ -98,9 +150,39 @@ class SatelliteTracker3D {
 
   private startTracking() {
     this.map.on('load', () => {
-      this.satelliteTracker.initialize();
-      this.updateUI();
-      setInterval(() => this.updateUI(), 5000);
+      // Wait a bit for the basemap to be added, then initialize satellites
+      setTimeout(() => {
+        this.satelliteTracker.initialize();
+        this.updateUI();
+        setInterval(() => this.updateUI(), 5000);
+      }, 100);
+    });
+  }
+
+  private setupURLSharing() {
+    // Update URL when map view changes (only zoom)
+    const updateURL = () => {
+      const zoom = this.map.getZoom();
+      
+      const url = new URL(window.location.href);
+      // Remove x and y parameters if they exist
+      url.searchParams.delete('x');
+      url.searchParams.delete('y');
+      url.searchParams.set('zoom', zoom.toFixed(2));
+      
+      // Update URL without triggering page reload
+      window.history.replaceState({}, '', url.toString());
+    };
+
+    // Update URL when user moves or zooms the map
+    this.map.on('moveend', updateURL);
+    this.map.on('zoomend', updateURL);
+    
+    // Also update URL when satellite tracking moves the map
+    this.map.on('move', () => {
+      // Debounce URL updates during smooth animations
+      clearTimeout((this as any).urlUpdateTimeout);
+      (this as any).urlUpdateTimeout = setTimeout(updateURL, 500);
     });
   }
 

@@ -45,6 +45,48 @@
       .control-btn:hover {
         background: rgba(255, 255, 255, 0.1);
       }
+      #search-container {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: rgba(0, 0, 0, 0.8);
+        padding: 15px;
+        border-radius: 8px;
+        min-width: 300px;
+      }
+      #satellite-search {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #333;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 14px;
+      }
+      #satellite-search::placeholder {
+        color: #aaa;
+      }
+      #search-results {
+        margin-top: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .search-result {
+        padding: 8px;
+        cursor: pointer;
+        border-radius: 4px;
+        margin: 2px 0;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 13px;
+      }
+      .search-result:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+      .search-result.following {
+        background: rgba(0, 255, 0, 0.3);
+      }
     </style>
   </head>
   <body>
@@ -53,6 +95,11 @@
       <div>Active Satellites: <span id="satellite-count">0</span></div>
       <div>ISS Altitude: <span id="iss-altitude">---</span> km</div>
       <div>Starlink: <span id="starlink-count">0</span> | Sentinel: <span id="sentinel-count">0</span></div>
+    </div>
+    
+    <div id="search-container">
+      <input type="text" id="satellite-search" placeholder="Search satellites by name..." />
+      <div id="search-results"></div>
     </div>
     
     <div id="controls">

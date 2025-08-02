@@ -10,6 +10,11 @@ export interface SatelliteData {
   velocity: number;
   tle1: string;
   tle2: string;
+  dimensions: {
+    length: number; // meters
+    width: number;  // meters
+    height: number; // meters
+  };
 }
 
 export class SatelliteTracker {
@@ -29,6 +34,7 @@ export class SatelliteTracker {
     this.loadSatelliteImages();
     this.setupMapLayers();
     this.setupMapInteractions();
+    this.setupSearchFunctionality();
     this.startTracking();
   }
 
@@ -39,21 +45,24 @@ export class SatelliteTracker {
         name: 'International Space Station',
         type: 'scientific' as const,
         tle1: '1 25544U 98067A   25214.09653981  .00010888  00000+0  19653-3 0  9996',
-        tle2: '2 25544  51.6345  79.5266 0001736 142.9190 217.1919 15.50282964522285'
+        tle2: '2 25544  51.6345  79.5266 0001736 142.9190 217.1919 15.50282964522285',
+        dimensions: { length: 108.5, width: 72.8, height: 20.0 }
       },
       {
         id: 'hubble',
         name: 'Hubble Space Telescope',
         type: 'scientific' as const,
         tle1: '1 20580U 90037B   25214.12345678  .00001234  00000-0  56789-4 0  9991',
-        tle2: '2 20580  28.4690 123.4567 0002345  78.9012 281.2345 15.09876543123456'
+        tle2: '2 20580  28.4690 123.4567 0002345  78.9012 281.2345 15.09876543123456',
+        dimensions: { length: 13.2, width: 4.2, height: 4.2 }
       },
       {
         id: 'noaa-20',
         name: 'NOAA-20 Weather Satellite',
         type: 'weather' as const,
         tle1: '1 43013U 17073A   25214.23456789  .00000987  00000-0  45678-4 0  9998',
-        tle2: '2 43013  98.7890 234.5678 0001987  89.0123 271.1234 14.19876543234567'
+        tle2: '2 43013  98.7890 234.5678 0001987  89.0123 271.1234 14.19876543234567',
+        dimensions: { length: 4.2, width: 2.6, height: 2.6 }
       },
       // Starlink constellation - Shell 1
       {
@@ -61,35 +70,40 @@ export class SatelliteTracker {
         name: 'Starlink-1007',
         type: 'communication' as const,
         tle1: '1 44713U 19074A   25214.12345678  .00002182  00000-0  15494-3 0  9999',
-        tle2: '2 44713  53.0534 123.4567 0001234  92.4356 267.7077 15.05000000270000'
+        tle2: '2 44713  53.0534 123.4567 0001234  92.4356 267.7077 15.05000000270000',
+        dimensions: { length: 2.8, width: 1.4, height: 0.32 }
       },
       {
         id: 'starlink-1019',
         name: 'Starlink-1019',
         type: 'communication' as const,
         tle1: '1 44714U 19074B   25214.13456789  .00002089  00000-0  14876-3 0  9998',
-        tle2: '2 44714  53.0535 124.5678 0001345  93.5467 268.8188 15.05000000271111'
+        tle2: '2 44714  53.0535 124.5678 0001345  93.5467 268.8188 15.05000000271111',
+        dimensions: { length: 2.8, width: 1.4, height: 0.32 }
       },
       {
         id: 'starlink-1021',
         name: 'Starlink-1021',
         type: 'communication' as const,
         tle1: '1 44715U 19074C   25214.14567890  .00001996  00000-0  14258-3 0  9997',
-        tle2: '2 44715  53.0536 125.6789 0001456  94.6578 269.9299 15.05000000272222'
+        tle2: '2 44715  53.0536 125.6789 0001456  94.6578 269.9299 15.05000000272222',
+        dimensions: { length: 2.8, width: 1.4, height: 0.32 }
       },
       {
         id: 'starlink-1024',
         name: 'Starlink-1024',
         type: 'communication' as const,
         tle1: '1 44716U 19074D   25214.15678901  .00001903  00000-0  13640-3 0  9996',
-        tle2: '2 44716  53.0537 126.7890 0001567  95.7689 271.0410 15.05000000273333'
+        tle2: '2 44716  53.0537 126.7890 0001567  95.7689 271.0410 15.05000000273333',
+        dimensions: { length: 2.8, width: 1.4, height: 0.32 }
       },
       {
         id: 'starlink-1030',
         name: 'Starlink-1030',
         type: 'communication' as const,
         tle1: '1 44717U 19074E   25214.16789012  .00001810  00000-0  13022-3 0  9995',
-        tle2: '2 44717  53.0538 127.8901 0001678  96.8790 272.1521 15.05000000274444'
+        tle2: '2 44717  53.0538 127.8901 0001678  96.8790 272.1521 15.05000000274444',
+        dimensions: { length: 2.8, width: 1.4, height: 0.32 }
       },
       // Starlink Shell 2 - Different inclination
       {
@@ -193,6 +207,28 @@ export class SatelliteTracker {
         tle1: '1 59002U 24001B   25214.30123456  .00005585  00000-0  33949-3 0  9981',
         tle2: '2 59002  53.1001 568.9012 0004678  88.0123 273.3456 15.30000000051111'
       },
+      // Sentinel-1 SAR satellites
+      {
+        id: 'sentinel-1a',
+        name: 'Sentinel-1A',
+        type: 'earth-observation' as const,
+        tle1: '1 39634U 14016A   25214.25123456  .00000234  00000-0  56789-4 0  9995',
+        tle2: '2 39634  98.1851 167.5432 0001456  78.9012 281.2345 14.59000000580000'
+      },
+      {
+        id: 'sentinel-1b',
+        name: 'Sentinel-1B',
+        type: 'earth-observation' as const,
+        tle1: '1 41456U 16025A   25214.26234567  .00000267  00000-0  62345-4 0  9994',
+        tle2: '2 41456  98.1852 287.6543 0001567  79.0123 282.3456 14.59000000480000'
+      },
+      {
+        id: 'sentinel-1c',
+        name: 'Sentinel-1C',
+        type: 'earth-observation' as const,
+        tle1: '1 59051U 24036A   25214.27345678  .00000198  00000-0  54321-4 0  9993',
+        tle2: '2 59051  98.1853 47.7654 0001678  80.1234 283.4567 14.59000000080000'
+      },
       // Sentinel-2 Earth observation satellites
       {
         id: 'sentinel-2a',
@@ -214,13 +250,74 @@ export class SatelliteTracker {
         type: 'earth-observation' as const,
         tle1: '1 59999U 24077A   25214.33456789  .00000467  00000-0  81234-4 0  9978',
         tle2: '2 59999  98.5694 345.6789 0001456  91.2345 273.3456 14.30000000180000'
+      },
+      // Sentinel-3 oceanography and land monitoring satellites
+      {
+        id: 'sentinel-3a',
+        name: 'Sentinel-3A',
+        type: 'earth-observation' as const,
+        tle1: '1 41335U 16011A   25214.34567890  .00000123  00000-0  45678-4 0  9993',
+        tle2: '2 41335  98.6543 198.7654 0001678  82.3456 277.7654 14.26000000460000'
+      },
+      {
+        id: 'sentinel-3b',
+        name: 'Sentinel-3B',
+        type: 'earth-observation' as const,
+        tle1: '1 43437U 18039A   25214.35678901  .00000156  00000-0  51234-4 0  9992',
+        tle2: '2 43437  98.6544 318.8765 0001789  83.4567 278.8765 14.26000000360000'
+      },
+      {
+        id: 'sentinel-3c',
+        name: 'Sentinel-3C',
+        type: 'earth-observation' as const,
+        tle1: '1 49832U 21104A   25214.36789012  .00000189  00000-0  56789-4 0  9991',
+        tle2: '2 49832  98.6545 78.9876 0001890  84.5678 279.9876 14.26000000260000'
+      },
+      // Sentinel-4 geostationary atmospheric monitoring
+      {
+        id: 'sentinel-4a',
+        name: 'Sentinel-4A (MTG-I1)',
+        type: 'earth-observation' as const,
+        tle1: '1 54866U 22167A   25214.37890123  .00000001  00000-0  10000-4 0  9990',
+        tle2: '2 54866  0.0567  85.4321 0000234  45.6789 314.3210 1.00271000010000'
+      },
+      // Sentinel-5P atmospheric monitoring
+      {
+        id: 'sentinel-5p',
+        name: 'Sentinel-5P (TROPOMI)',
+        type: 'earth-observation' as const,
+        tle1: '1 42969U 17064A   25214.38901234  .00000345  00000-0  67890-4 0  9989',
+        tle2: '2 42969  98.7321 142.5678 0001345  86.7890 273.2109 14.19000000380000'
+      },
+      // Sentinel-6 oceanography satellites
+      {
+        id: 'sentinel-6a',
+        name: 'Sentinel-6A (Michael Freilich)',
+        type: 'earth-observation' as const,
+        tle1: '1 46984U 20087A   25214.39012345  .00000278  00000-0  61234-4 0  9988',
+        tle2: '2 46984  66.0391 234.5678 0000567  89.0123 271.1234 12.84000000210000'
+      },
+      {
+        id: 'sentinel-6b',
+        name: 'Sentinel-6B',
+        type: 'earth-observation' as const,
+        tle1: '1 52000U 23045A   25214.40123456  .00000312  00000-0  67890-4 0  9987',
+        tle2: '2 52000  66.0392 354.6789 0000678  90.1234 272.2345 12.84000000110000'
       }
     ];
 
     sampleSatellites.forEach(sat => {
       const position = this.calculateSatellitePosition(sat.tle1, sat.tle2);
+      
+      // Add default dimensions if not specified
+      let dimensions = sat.dimensions;
+      if (!dimensions) {
+        dimensions = this.getDefaultDimensionsForType(sat.type, sat.id);
+      }
+      
       this.satellites.set(sat.id, {
         ...sat,
+        dimensions,
         position: new LngLat(position.longitude, position.latitude),
         altitude: position.altitude,
         velocity: position.velocity
@@ -228,10 +325,65 @@ export class SatelliteTracker {
     });
   }
 
+  private getDefaultDimensionsForType(type: string, satelliteId: string) {
+    // Starlink satellites (all generations)
+    if (satelliteId.includes('starlink')) {
+      if (satelliteId.includes('gen2') || satelliteId.includes('dtc')) {
+        return { length: 4.1, width: 1.2, height: 0.32 }; // Gen2 and DTC are larger
+      }
+      return { length: 2.8, width: 1.4, height: 0.32 }; // Standard Starlink
+    }
+    
+    // Sentinel satellites by constellation
+    if (satelliteId.includes('sentinel-1')) {
+      return { length: 10.0, width: 2.4, height: 3.4 }; // Sentinel-1 SAR
+    }
+    if (satelliteId.includes('sentinel-2')) {
+      return { length: 3.7, width: 2.1, height: 2.4 }; // Sentinel-2 optical
+    }
+    if (satelliteId.includes('sentinel-3')) {
+      return { length: 3.9, width: 2.2, height: 2.2 }; // Sentinel-3 ocean/land
+    }
+    if (satelliteId.includes('sentinel-4')) {
+      return { length: 3.2, width: 2.1, height: 1.8 }; // Sentinel-4 geostationary
+    }
+    if (satelliteId.includes('sentinel-5')) {
+      return { length: 3.5, width: 2.1, height: 2.1 }; // Sentinel-5P
+    }
+    if (satelliteId.includes('sentinel-6')) {
+      return { length: 3.3, width: 2.3, height: 2.8 }; // Sentinel-6 oceanography
+    }
+    
+    // Default dimensions by type
+    switch (type) {
+      case 'scientific':
+        return { length: 5.0, width: 3.0, height: 3.0 };
+      case 'communication':
+        return { length: 3.0, width: 2.0, height: 2.0 };
+      case 'weather':
+        return { length: 4.0, width: 2.5, height: 2.5 };
+      case 'earth-observation':
+        return { length: 4.0, width: 2.0, height: 2.5 };
+      case 'navigation':
+        return { length: 2.4, width: 1.8, height: 1.8 };
+      default:
+        return { length: 3.0, width: 2.0, height: 2.0 };
+    }
+  }
+
   private loadSatelliteImages() {
     const issImagePath = '/static/images/ISS.png';
     const starlinkImagePath = '/static/images/starlink.png';
-    const sentinelImagePath = '/static/images/esa_sentinel2.png';
+    
+    // Sentinel constellation images
+    const sentinelImages = [
+      { path: '/static/images/esa_sentinel1.png', iconName: 'sentinel-1-icon', constellation: 'sentinel-1' },
+      { path: '/static/images/esa_sentinel2.png', iconName: 'sentinel-2-icon', constellation: 'sentinel-2' },
+      { path: '/static/images/esa_sentinel3.png', iconName: 'sentinel-3-icon', constellation: 'sentinel-3' },
+      { path: '/static/images/esa_sentinel4.png', iconName: 'sentinel-4-icon', constellation: 'sentinel-4' },
+      { path: '/static/images/esa_sentinel5.png', iconName: 'sentinel-5-icon', constellation: 'sentinel-5' },
+      { path: '/static/images/esa_sentinel6.png', iconName: 'sentinel-6-icon', constellation: 'sentinel-6' }
+    ];
     
     this.map.loadImage(issImagePath)
       .then(response => {
@@ -244,14 +396,14 @@ export class SatelliteTracker {
         const scaleForTarget = targetHeight / imageData.height;
         console.log('ISS scale factor for 40px height:', scaleForTarget);
         
-        // Update the ISS layer with calculated scaling
-        this.updateISSIconSize(scaleForTarget);
+        // Update the ISS layer with calculated scaling (108.5m length)
+        this.updateISSIconSize(scaleForTarget, 108.5);
       })
       .catch(error => {
         console.warn('Could not load ISS icon from', issImagePath, ':', error);
         this.createFallbackIcon('iss-icon', '#00ff00');
         // Use default scaling for fallback (64px fallback icon)
-        this.updateISSIconSize(40 / 64);
+        this.updateISSIconSize(40 / 64, 108.5);
       });
 
     this.map.loadImage(starlinkImagePath)
@@ -265,36 +417,43 @@ export class SatelliteTracker {
         const scaleForTarget = targetHeight / imageData.height;
         console.log('Starlink scale factor for 40px height:', scaleForTarget);
         
-        // Update the Starlink layer with calculated scaling
-        this.updateStarlinkIconSize(scaleForTarget);
+        // Update the Starlink layer with calculated scaling (2.8m average length)
+        this.updateStarlinkIconSize(scaleForTarget, 2.8);
       })
       .catch(error => {
         console.warn('Could not load Starlink icon from', starlinkImagePath, ':', error);
         this.createFallbackIcon('starlink-icon', '#0080ff');
         // Use default scaling for fallback (64px fallback icon)
-        this.updateStarlinkIconSize(40 / 64);
+        this.updateStarlinkIconSize(40 / 64, 2.8);
       });
 
-    this.map.loadImage(sentinelImagePath)
-      .then(response => {
-        const imageData = response.data;
-        console.log('Successfully loaded Sentinel-2 icon - dimensions:', imageData.width, 'x', imageData.height);
-        this.map.addImage('sentinel-icon', imageData);
-        
-        // Calculate scale factor to achieve 40px height at zoom 2
-        const targetHeight = 40;
-        const scaleForTarget = targetHeight / imageData.height;
-        console.log('Sentinel-2 scale factor for 40px height:', scaleForTarget);
-        
-        // Update the Sentinel layer with calculated scaling
-        this.updateSentinelIconSize(scaleForTarget);
-      })
-      .catch(error => {
-        console.warn('Could not load Sentinel-2 icon from', sentinelImagePath, ':', error);
-        this.createFallbackIcon('sentinel-icon', '#ff8000');
-        // Use default scaling for fallback (64px fallback icon)
-        this.updateSentinelIconSize(40 / 64);
-      });
+    // Load all Sentinel constellation images
+    sentinelImages.forEach(({ path, iconName, constellation }) => {
+      this.map.loadImage(path)
+        .then(response => {
+          const imageData = response.data;
+          console.log(`Successfully loaded ${constellation} icon - dimensions:`, imageData.width, 'x', imageData.height);
+          this.map.addImage(iconName, imageData);
+          
+          // Calculate scale factor to achieve 40px height at zoom 2
+          const targetHeight = 40;
+          const scaleForTarget = targetHeight / imageData.height;
+          console.log(`${constellation} scale factor for 40px height:`, scaleForTarget);
+          
+          // Get typical satellite length for this constellation
+          const satelliteLength = this.getConstellationLength(constellation);
+          
+          // Update the layer with calculated scaling
+          this.updateSentinelIconSize(scaleForTarget, iconName, satelliteLength);
+        })
+        .catch(error => {
+          console.warn(`Could not load ${constellation} icon from`, path, ':', error);
+          this.createFallbackIcon(iconName, '#ff8000');
+          // Use default scaling for fallback (64px fallback icon)
+          const satelliteLength = this.getConstellationLength(constellation);
+          this.updateSentinelIconSize(40 / 64, iconName, satelliteLength);
+        });
+    });
   }
 
   private createFallbackIcon(iconName: string, color: string) {
@@ -328,71 +487,122 @@ export class SatelliteTracker {
     }
   }
 
-  private updateISSIconSize(baseScale: number) {
-    this.map.setLayoutProperty('satellites-iss-icon', 'icon-size', [
+  private getUnifiedSizeExpression(baseSize: number, satelliteLength?: number) {
+    // If satelliteLength is provided, scale proportionally to ISS (108.5m)
+    let proportionalSize = baseSize;
+    if (satelliteLength) {
+      const ISS_LENGTH = 108.5; // meters
+      const lengthRatio = satelliteLength / ISS_LENGTH;
+      proportionalSize = baseSize * lengthRatio;
+    }
+    
+    const scaledSize = proportionalSize * 1.33; // Reduced from 4.0 to 1.33 (4.0/3) for better sizing
+    return [
       'interpolate',
-      ['exponential', 0.5],
+      ['linear'],
       ['zoom'],
-      0, baseScale * 0.25,   // Smaller when zoomed out (far away)
-      2, baseScale,          // Target size at default zoom
-      10, baseScale * 2.0,   // Larger when zoomed in (getting closer)
-      20, baseScale * 4.0    // Much larger when very zoomed in (very close)
-    ]);
+      0, scaledSize * 0.5,    // Small when zoomed out
+      1, scaledSize * 1.0,    // 1x size at zoom 1
+      2, scaledSize * 2.0,    // 2x size at zoom 2
+      3, scaledSize * 3.0,    // 3x size at zoom 3
+      4, scaledSize * 4.0,    // 4x size at zoom 4
+      5, scaledSize * 5.0,    // 5x size at zoom 5
+      6, scaledSize * 6.0,    // 6x size at zoom 6
+      7, scaledSize * 7.0,    // 7x size at zoom 7
+      8, scaledSize * 8.0,    // 8x size at zoom 8
+      9, scaledSize * 9.0,    // 9x size at zoom 9
+      10, scaledSize * 10.0,  // 10x size at zoom 10
+      15, scaledSize * 15.0,  // 15x size at zoom 15
+      20, scaledSize * 20.0   // 20x size at zoom 20
+    ];
   }
 
-  private updateStarlinkIconSize(baseScale: number) {
-    this.map.setLayoutProperty('satellites-starlink-icon', 'icon-size', [
-      'interpolate',
-      ['exponential', 0.5],
-      ['zoom'],
-      0, baseScale * 0.25,   // Smaller when zoomed out (far away)
-      2, baseScale,          // Target size at default zoom
-      10, baseScale * 2.0,   // Larger when zoomed in (getting closer)
-      20, baseScale * 4.0    // Much larger when very zoomed in (very close)
-    ]);
+  private updateISSIconSize(baseScale: number, satelliteLength?: number) {
+    this.map.setLayoutProperty('satellites-iss-icon', 'icon-size', this.getUnifiedSizeExpression(baseScale, satelliteLength));
   }
 
-  private updateSentinelIconSize(baseScale: number) {
-    this.map.setLayoutProperty('satellites-sentinel-icon', 'icon-size', [
-      'interpolate',
-      ['exponential', 0.5],
-      ['zoom'],
-      0, baseScale * 0.25,   // Smaller when zoomed out (far away)
-      2, baseScale,          // Target size at default zoom
-      10, baseScale * 2.0,   // Larger when zoomed in (getting closer)
-      20, baseScale * 4.0    // Much larger when very zoomed in (very close)
-    ]);
+  private updateStarlinkIconSize(baseScale: number, satelliteLength?: number) {
+    this.map.setLayoutProperty('satellites-starlink-icon', 'icon-size', this.getUnifiedSizeExpression(baseScale, satelliteLength));
+  }
+
+
+  private getConstellationLength(constellation: string): number {
+    switch (constellation) {
+      case 'sentinel-1': return 10.0;
+      case 'sentinel-2': return 3.7;
+      case 'sentinel-3': return 3.9;
+      case 'sentinel-4': return 3.2;
+      case 'sentinel-5': return 3.5;
+      case 'sentinel-6': return 3.3;
+      default: return 4.0;
+    }
+  }
+
+  private updateSentinelIconSize(baseScale: number, iconName?: string, satelliteLength?: number) {
+    // If iconName is provided, try to update the specific layer
+    if (iconName) {
+      const layerName = iconName.replace('-icon', '-layer');
+      if (this.map.getLayer(layerName)) {
+        this.map.setLayoutProperty(layerName, 'icon-size', this.getUnifiedSizeExpression(baseScale, satelliteLength));
+      }
+    } else {
+      // Fallback to update all sentinel layers
+      const sentinelLayers = [
+        'sentinel-1-layer', 'sentinel-2-layer', 'sentinel-3-layer', 
+        'sentinel-4-layer', 'sentinel-5-layer', 'sentinel-6-layer'
+      ];
+      sentinelLayers.forEach(layerName => {
+        if (this.map.getLayer(layerName)) {
+          this.map.setLayoutProperty(layerName, 'icon-size', this.getUnifiedSizeExpression(baseScale, satelliteLength));
+        }
+      });
+    }
   }
 
   private setupMapInteractions() {
-    const layers = ['satellites-main', 'satellites-iss-icon', 'satellites-starlink-icon', 'satellites-sentinel-icon', 'satellite-icon-labels'];
+    const layers = [
+      'satellites-main', 
+      'satellites-small-dots',
+      'satellites-iss-icon', 
+      'satellites-starlink-icon', 
+      'sentinel-1-layer',
+      'sentinel-2-layer',
+      'sentinel-3-layer',
+      'sentinel-4-layer',
+      'sentinel-5-layer',
+      'sentinel-6-layer'
+    ];
     
     layers.forEach(layerId => {
-      this.map.on('click', layerId, (e) => {
-        if (e.features && e.features[0]) {
-          const satelliteId = e.features[0].properties?.id;
-          const satellite = this.satellites.get(satelliteId);
-          if (satellite) {
-            this.followSatellite(satelliteId);
-            this.showSatelliteInfo(satellite);
+      // Check if layer exists before adding event listeners
+      if (this.map.getLayer(layerId)) {
+        this.map.on('click', layerId, (e) => {
+          if (e.features && e.features[0]) {
+            const satelliteId = e.features[0].properties?.id;
+            const satellite = this.satellites.get(satelliteId);
+            if (satellite) {
+              this.followSatellite(satelliteId);
+              this.showSatelliteInfo(satellite);
+            }
           }
-        }
-      });
+        });
 
-      this.map.on('mouseenter', layerId, () => {
-        this.map.getCanvas().style.cursor = 'pointer';
-      });
+        this.map.on('mouseenter', layerId, () => {
+          this.map.getCanvas().style.cursor = 'pointer';
+        });
 
-      this.map.on('mouseleave', layerId, () => {
-        this.map.getCanvas().style.cursor = '';
-      });
+        this.map.on('mouseleave', layerId, () => {
+          this.map.getCanvas().style.cursor = '';
+        });
+      }
     });
 
     // Stop following when clicking on empty map area
     this.map.on('click', (e) => {
-      // Check if the click hit any satellite layers
+      // Check if the click hit any satellite layers (only existing ones)
+      const existingLayers = layers.filter(layerId => this.map.getLayer(layerId));
       const features = this.map.queryRenderedFeatures(e.point, {
-        layers: layers
+        layers: existingLayers
       });
       
       if (features.length === 0 && this.followingSatellite) {
@@ -446,13 +656,17 @@ export class SatelliteTracker {
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
+      console.log(`🎯 Started following satellite: ${satellite.name}`);
       // Immediate zoom/pan to satellite
       this.map.flyTo({
         center: [satellite.position.lng, satellite.position.lat],
-        zoom: Math.max(this.map.getZoom(), 6), // Zoom in if currently zoomed out
+        zoom: Math.max(this.map.getZoom(), 4), // Zoom in if currently zoomed out
         duration: 2000,
         essential: true
       });
+      
+      // Show confirmation message
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
     }
   }
 
@@ -470,6 +684,7 @@ export class SatelliteTracker {
     const info = `
       Name: ${satellite.name}
       Type: ${satellite.type}
+      Dimensions: ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m
       Altitude: ${satellite.altitude.toFixed(0)} km
       Velocity: ${satellite.velocity.toFixed(2)} km/s
       Position: ${satellite.position.lat.toFixed(4)}°, ${satellite.position.lng.toFixed(4)}°${followingText}
@@ -532,7 +747,8 @@ export class SatelliteTracker {
         name: sat.name,
         type: sat.type,
         altitude: sat.altitude,
-        velocity: sat.velocity
+        velocity: sat.velocity,
+        length: sat.dimensions.length
       },
       geometry: {
         type: 'Point' as const,
@@ -548,6 +764,7 @@ export class SatelliteTracker {
       }
     });
 
+    // Setup layers without text labels to avoid font issues
     this.map.addLayer({
       id: 'satellites-main',
       type: 'circle',
@@ -556,36 +773,21 @@ export class SatelliteTracker {
       paint: {
         'circle-radius': [
           'interpolate',
-          ['exponential', 0.5],
+          ['linear'],
           ['zoom'],
-          0, [
-            'case',
-            ['==', ['get', 'type'], 'scientific'], 1.5,
-            ['==', ['get', 'type'], 'weather'], 1.2,
-            ['==', ['get', 'type'], 'navigation'], 1,
-            0.8
-          ],
-          2, [
-            'case',
-            ['==', ['get', 'type'], 'scientific'], 6,
-            ['==', ['get', 'type'], 'weather'], 5,
-            ['==', ['get', 'type'], 'navigation'], 4,
-            3
-          ],
-          10, [
-            'case',
-            ['==', ['get', 'type'], 'scientific'], 12,
-            ['==', ['get', 'type'], 'weather'], 10,
-            ['==', ['get', 'type'], 'navigation'], 8,
-            6
-          ],
-          20, [
-            'case',
-            ['==', ['get', 'type'], 'scientific'], 24,
-            ['==', ['get', 'type'], 'weather'], 20,
-            ['==', ['get', 'type'], 'navigation'], 16,
-            12
-          ]
+          0, 1.0,    // Small when zoomed out
+          1, 2.0,    // 1x size at zoom 1
+          2, 3.0,    // 2x size at zoom 2
+          3, 4.0,    // 3x size at zoom 3
+          4, 5.0,    // 4x size at zoom 4
+          5, 6.0,    // 5x size at zoom 5
+          6, 7.0,    // 6x size at zoom 6
+          7, 8.0,    // 7x size at zoom 7
+          8, 9.0,    // 8x size at zoom 8
+          9, 10.0,   // 9x size at zoom 9
+          10, 11.0,  // 10x size at zoom 10
+          15, 16.0,  // 15x size at zoom 15
+          20, 21.0   // 20x size at zoom 20
         ],
         'circle-color': [
           'case',
@@ -600,6 +802,39 @@ export class SatelliteTracker {
       }
     });
 
+    // Add small satellite dots layer for satellites with length < 11m
+    this.map.addLayer({
+      id: 'satellites-small-dots',
+      type: 'circle',
+      source: 'satellites',
+      filter: [
+        'all',
+        ['<', ['get', 'length'], 11],
+        ['<', ['zoom'], 5]
+      ],
+      paint: {
+        'circle-radius': [
+          'interpolate',
+          ['linear'],
+          ['zoom'],
+          0, 1.0,    // Small when zoomed out
+          1, 2.0,    // 1x size at zoom 1
+          2, 3.0,    // 2x size at zoom 2
+          3, 4.0,    // 3x size at zoom 3
+          4, 5.0,    // 4x size at zoom 4
+          5, 6.0     // 5x size at zoom 5 (only shown until zoom 5)
+        ],
+        'circle-color': [
+          'case',
+          ['==', ['get', 'type'], 'communication'], '#0080ff',
+          ['==', ['get', 'type'], 'earth-observation'], '#ff8000',
+          '#ffffff'
+        ],
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#ffffff',
+        'circle-opacity': 0.9
+      }
+    });
 
     this.map.addLayer({
       id: 'satellites-iss-icon',
@@ -618,7 +853,15 @@ export class SatelliteTracker {
       id: 'satellites-starlink-icon',
       type: 'symbol',
       source: 'satellites',
-      filter: ['==', ['get', 'type'], 'communication'],
+      filter: [
+        'all',
+        ['==', ['get', 'type'], 'communication'],
+        [
+          'any',
+          ['>=', ['get', 'length'], 11],
+          ['>=', ['zoom'], 5]
+        ]
+      ],
       layout: {
         'icon-image': 'starlink-icon',
         'icon-size': 1.0, // Will be updated dynamically when image loads
@@ -627,57 +870,41 @@ export class SatelliteTracker {
       }
     });
 
-    this.map.addLayer({
-      id: 'satellites-sentinel-icon',
-      type: 'symbol',
-      source: 'satellites',
-      filter: ['==', ['get', 'type'], 'earth-observation'],
-      layout: {
-        'icon-image': 'sentinel-icon',
-        'icon-size': 1.0, // Will be updated dynamically when image loads
-        'icon-allow-overlap': true,
-        'icon-ignore-placement': true
-      }
-    });
-
-    this.map.addLayer({
-      id: 'satellite-labels',
-      type: 'symbol',
-      source: 'satellites',
-      filter: ['all', ['!=', ['get', 'id'], 'iss'], ['!=', ['get', 'type'], 'communication'], ['!=', ['get', 'type'], 'earth-observation']],
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-font': ['Open Sans Regular'],
-        'text-offset': [0, 2],
-        'text-anchor': 'top',
-        'text-size': 12
-      },
-      paint: {
-        'text-color': '#ffffff',
-        'text-halo-color': '#000000',
-        'text-halo-width': 1
-      }
-    });
-
-    this.map.addLayer({
-      id: 'satellite-icon-labels',
-      type: 'symbol',
-      source: 'satellites',
-      filter: ['any', ['==', ['get', 'id'], 'iss'], ['==', ['get', 'type'], 'communication'], ['==', ['get', 'type'], 'earth-observation']],
-      layout: {
-        'text-field': ['get', 'name'],
-        'text-font': ['Open Sans Regular'],
-        'text-offset': [0, 3],
-        'text-anchor': 'top',
-        'text-size': 11
-      },
-      paint: {
-        'text-color': '#ffffff',
-        'text-halo-color': '#000000',
-        'text-halo-width': 2
-      }
+    // Create separate layers for each Sentinel constellation
+    const sentinelConstellations = [
+      { number: '1', satellites: ['sentinel-1a', 'sentinel-1b', 'sentinel-1c'] },
+      { number: '2', satellites: ['sentinel-2a', 'sentinel-2b', 'sentinel-2c'] },
+      { number: '3', satellites: ['sentinel-3a', 'sentinel-3b', 'sentinel-3c'] },
+      { number: '4', satellites: ['sentinel-4a'] },
+      { number: '5', satellites: ['sentinel-5p'] },
+      { number: '6', satellites: ['sentinel-6a', 'sentinel-6b'] }
+    ];
+    
+    sentinelConstellations.forEach(({ number, satellites }) => {
+      this.map.addLayer({
+        id: `sentinel-${number}-layer`,
+        type: 'symbol',
+        source: 'satellites',
+        filter: [
+          'all',
+          ['==', ['get', 'type'], 'earth-observation'],
+          ['in', ['get', 'id'], ['literal', satellites]],
+          [
+            'any',
+            ['>=', ['get', 'length'], 11],
+            ['>=', ['zoom'], 5]
+          ]
+        ],
+        layout: {
+          'icon-image': `sentinel-${number}-icon`,
+          'icon-size': 1.0, // Will be updated dynamically when image loads
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true
+        }
+      });
     });
   }
+
 
   private startTracking() {
     const updatePositions = () => {
@@ -696,7 +923,8 @@ export class SatelliteTracker {
             name: sat.name,
             type: sat.type,
             altitude: sat.altitude,
-            velocity: sat.velocity
+            velocity: sat.velocity,
+            length: sat.dimensions.length
           },
           geometry: {
             type: 'Point' as const,
@@ -812,10 +1040,22 @@ export class SatelliteTracker {
     if (this.followingSatellite) {
       const satellite = this.satellites.get(this.followingSatellite);
       if (satellite) {
-        // Smoothly pan to follow the satellite without changing zoom
-        this.map.panTo([satellite.position.lng, satellite.position.lat], {
-          duration: 1000 // Smooth 1-second pan
-        });
+        // Get current map center to check if we need to update
+        const currentCenter = this.map.getCenter();
+        const newLng = satellite.position.lng;
+        const newLat = satellite.position.lat;
+        
+        // Only update if the satellite has moved significantly (to avoid unnecessary updates)
+        const threshold = 0.001; // About 100 meters
+        const deltaLng = Math.abs(currentCenter.lng - newLng);
+        const deltaLat = Math.abs(currentCenter.lat - newLat);
+        
+        if (deltaLng > threshold || deltaLat > threshold) {
+          // Use jumpTo for immediate response without animation delays
+          this.map.jumpTo({
+            center: [newLng, newLat]
+          });
+        }
       }
     }
   }
@@ -826,6 +1066,78 @@ export class SatelliteTracker {
 
   removeSatellite(id: string): boolean {
     return this.satellites.delete(id);
+  }
+
+  private setupSearchFunctionality() {
+    const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
+    const searchResults = document.getElementById('search-results') as HTMLDivElement;
+    
+    if (!searchInput || !searchResults) return;
+    
+    searchInput.addEventListener('input', (e) => {
+      const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
+      this.performSearch(query, searchResults);
+    });
+    
+    // Clear search when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target as Node) && !searchResults.contains(e.target as Node)) {
+        searchResults.innerHTML = '';
+      }
+    });
+  }
+  
+  private performSearch(query: string, resultsContainer: HTMLDivElement) {
+    resultsContainer.innerHTML = '';
+    
+    if (query.length < 2) return;
+    
+    const matches = Array.from(this.satellites.values())
+      .filter(satellite => 
+        satellite.name.toLowerCase().includes(query) ||
+        satellite.id.toLowerCase().includes(query) ||
+        satellite.type.toLowerCase().includes(query)
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 10); // Limit to 10 results
+    
+    matches.forEach(satellite => {
+      const resultDiv = document.createElement('div');
+      resultDiv.className = 'search-result';
+      if (this.followingSatellite === satellite.id) {
+        resultDiv.className += ' following';
+      }
+      
+      resultDiv.innerHTML = `
+        <div><strong>${satellite.name}</strong></div>
+        <div style="font-size: 11px; color: #ccc;">
+          ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | Alt: ${satellite.altitude.toFixed(0)}km
+        </div>
+        <div style="font-size: 10px; color: #aaa;">
+          ${satellite.position.lat.toFixed(2)}°, ${satellite.position.lng.toFixed(2)}°
+        </div>
+      `;
+      
+      resultDiv.addEventListener('click', () => {
+        this.selectSatelliteFromSearch(satellite.id);
+        resultsContainer.innerHTML = '';
+        (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name;
+      });
+      
+      resultsContainer.appendChild(resultDiv);
+    });
+    
+    if (matches.length === 0 && query.length >= 2) {
+      resultsContainer.innerHTML = '<div style="padding: 8px; color: #999;">No satellites found</div>';
+    }
+  }
+  
+  private selectSatelliteFromSearch(satelliteId: string) {
+    const satellite = this.satellites.get(satelliteId);
+    if (satellite) {
+      this.followSatellite(satelliteId);
+      this.showSatelliteInfo(satellite);
+    }
   }
 
   stop() {
