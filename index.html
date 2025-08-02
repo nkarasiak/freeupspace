@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Satellite Tracker</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        background: #000;
+        overflow: hidden;
+      }
+      #map {
+        width: 100vw;
+        height: 100vh;
+      }
+      #ui {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 1000;
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 15px;
+        border-radius: 8px;
+      }
+      #controls {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        color: white;
+      }
+      .control-btn {
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        border: 1px solid #333;
+        padding: 10px 15px;
+        margin: 5px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .control-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <h3>Satellite Tracker</h3>
+      <div>Active Satellites: <span id="satellite-count">0</span></div>
+      <div>ISS Altitude: <span id="iss-altitude">---</span> km</div>
+      <div>Starlink: <span id="starlink-count">0</span> | Sentinel: <span id="sentinel-count">0</span></div>
+    </div>
+    
+    <div id="controls">
+      <button class="control-btn" id="toggle-basemap">Toggle Day/Night</button>
+      <button class="control-btn" id="track-iss">Focus on ISS</button>
+      <button class="control-btn" id="show-starlink">Toggle Orbits</button>
+    </div>
+    
+    <div id="map"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
