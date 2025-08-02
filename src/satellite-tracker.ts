@@ -513,17 +513,17 @@ export class SatelliteTracker {
   }
 
   private loadSatelliteImages() {
-    const issImagePath = 'public/static/images/ISS.png';
-    const starlinkImagePath = 'public/static/images/starlink.png';
+    const issImagePath = 'static/images/ISS.png';
+    const starlinkImagePath = 'static/images/starlink.png';
     
     // Sentinel constellation images
     const sentinelImages = [
-      { path: 'public/static/images/esa_sentinel1.png', iconName: 'sentinel-1-icon', constellation: 'sentinel-1' },
-      { path: 'public/static/images/esa_sentinel2.png', iconName: 'sentinel-2-icon', constellation: 'sentinel-2' },
-      { path: 'public/static/images/esa_sentinel3.png', iconName: 'sentinel-3-icon', constellation: 'sentinel-3' },
-      { path: 'public/static/images/esa_sentinel4.png', iconName: 'sentinel-4-icon', constellation: 'sentinel-4' },
-      { path: 'public/static/images/esa_sentinel5.png', iconName: 'sentinel-5-icon', constellation: 'sentinel-5' },
-      { path: 'public/static/images/esa_sentinel6.png', iconName: 'sentinel-6-icon', constellation: 'sentinel-6' }
+      { path: 'static/images/esa_sentinel1.png', iconName: 'sentinel-1-icon', constellation: 'sentinel-1' },
+      { path: 'static/images/esa_sentinel2.png', iconName: 'sentinel-2-icon', constellation: 'sentinel-2' },
+      { path: 'static/images/esa_sentinel3.png', iconName: 'sentinel-3-icon', constellation: 'sentinel-3' },
+      { path: 'static/images/esa_sentinel4.png', iconName: 'sentinel-4-icon', constellation: 'sentinel-4' },
+      { path: 'static/images/esa_sentinel5.png', iconName: 'sentinel-5-icon', constellation: 'sentinel-5' },
+      { path: 'static/images/esa_sentinel6.png', iconName: 'sentinel-6-icon', constellation: 'sentinel-6' }
     ];
     
     this.map.loadImage(issImagePath)
