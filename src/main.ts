@@ -24,7 +24,6 @@ class SatelliteTracker3D {
     this.initialZoom = this.urlState.getInitialZoom();
     const initialPitch = this.urlState.getInitialPitch();
     const initialBearing = this.urlState.getInitialBearing();
-    console.log(`🔍 Initial view from URL: zoom=${this.initialZoom}, pitch=${initialPitch}, bearing=${initialBearing}`);
     
     this.map = new MapLibreMap({
       container: 'map',
@@ -58,15 +57,10 @@ class SatelliteTracker3D {
     
     // Initialize with day basemap
     this.map.on('load', () => {
-      console.log(`📍 Map loaded with zoom: ${this.map.getZoom()}`);
       this.addDayBasemap();
       this.add3DTerrain();
     });
     
-    // Debug zoom changes
-    this.map.on('zoom', () => {
-      console.log(`🔍 Zoom changed to: ${this.map.getZoom()}`);
-    });
   }
 
   private addDayBasemap() {
@@ -156,7 +150,6 @@ class SatelliteTracker3D {
       exaggeration: 3 // Exaggerate elevation by 3x for dramatic effect from satellite view
     });
 
-    console.log('🏔️ 3D terrain enabled with 3x exaggeration using Terrarium data');
   }
 
   private getFirstSatelliteLayerId(): string | undefined {
@@ -212,14 +205,12 @@ class SatelliteTracker3D {
         if (satelliteToTrack) {
           // Give a bit more time for satellites to be loaded
           setTimeout(() => {
-            console.log(`🔄 Attempting to follow satellite from URL: ${satelliteToTrack}`);
             
             // Check if satellite exists before trying to follow it
             const satellites = this.satelliteTracker.getSatellites();
             if (satellites.has(satelliteToTrack)) {
               // Preserve the zoom level from URL when following satellite
               this.satelliteTracker.followSatellite(satelliteToTrack, false, this.initialZoom);
-              console.log(`✅ Successfully started following: ${satelliteToTrack} with zoom ${this.initialZoom}`);
             } else {
               console.warn(`⚠️ Satellite not found: ${satelliteToTrack}. Available satellites:`, Array.from(satellites.keys()));
               // Remove invalid satellite from URL
@@ -229,7 +220,6 @@ class SatelliteTracker3D {
             // End initialization phase after satellite tracking is set up
             setTimeout(() => {
               this.urlState.setInitializing(false);
-              console.log('✅ Initialization complete, URL updates enabled');
             }, 500);
           }, 1000);
         } else {

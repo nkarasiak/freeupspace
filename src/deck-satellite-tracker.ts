@@ -159,15 +159,11 @@ export class DeckSatelliteTracker {
           velocity: position.velocity
         });
         
-        console.log(`✅ Successfully loaded satellite ${sat.id} (${sat.name}) at (${position.longitude.toFixed(2)}, ${position.latitude.toFixed(2)})`);
       } catch (error) {
         console.error(`❌ Error loading satellite ${sat.id}:`, error);
       }
     });
-    
-    console.log(`📡 Total satellites loaded: ${this.satellites.size}`);
-    console.log(`📡 Available satellites:`, Array.from(this.satellites.keys()));
-  }
+      }
 
   private loadSatelliteIcons() {
     // Find all satellites with images
@@ -179,12 +175,10 @@ export class DeckSatelliteTracker {
   }
 
   private loadSatelliteIcon(satelliteId: string, imageUrl: string) {
-    console.log(`🔄 Attempting to load icon for ${satelliteId} from ${imageUrl}`);
     
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      console.log(`📷 Image loaded for ${satelliteId}:`, img.width, 'x', img.height);
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
@@ -204,14 +198,11 @@ export class DeckSatelliteTracker {
           height: canvas.height
         });
         
-        console.log(`✅ ${satelliteId} icon loaded successfully with dimensions ${img.width}x${img.height}`);
-        console.log(`📊 Total loaded icons:`, this.satelliteIcons.size);
         this.updateLayers(); // Refresh layers with icon
       }
     };
     img.onerror = (error) => {
       console.error(`❌ Failed to load ${satelliteId} icon from ${imageUrl}:`, error);
-      console.log(`🔍 Check if file exists at: ${window.location.origin}${imageUrl}`);
       // Fall back to circle for this satellite
     };
     img.src = imageUrl;
@@ -306,19 +297,12 @@ export class DeckSatelliteTracker {
         size: this.getSizeForZoom(zoom, sat.dimensions.length * 2)
       }));
     
-    // Log first satellite for debugging (only occasionally)
-    if (points.length > 0 && Math.random() < 0.01) { // Log ~1% of the time
-      console.log('🛰️ Sample satellite:', points[0]);
-    }
-    
     return points;
   }
 
   private generateSatelliteIconData(): any[] {
     const zoom = this.map.getZoom();
     const iconData: any[] = [];
-
-    console.log(`🎯 Generating icon data. Loaded icons:`, Array.from(this.satelliteIcons.keys()));
 
     // Generate icon data for satellites with loaded icons
     this.satelliteIcons.forEach((_, satelliteId) => {
@@ -343,14 +327,11 @@ export class DeckSatelliteTracker {
             velocity: satellite.velocity
           };
           iconData.push(data);
-          console.log(`📍 Added icon data for ${satelliteId}:`, data);
         }
       } else {
         console.warn(`⚠️ Satellite ${satelliteId} has loaded icon but no satellite data`);
       }
     });
-
-    console.log(`📊 Total icon data generated:`, iconData.length);
     return iconData;
   }
 
@@ -366,11 +347,7 @@ export class DeckSatelliteTracker {
     } else {
       size = effectiveZoom * satelliteWidth * 4;
     }
-    
-    // Debug logging
-    console.log(`📏 ${satelliteId} size: zoom=${effectiveZoom}, width=${satelliteWidth}m, formula=${satelliteId === 'iss' ? 'zoom*width/3' : 'zoom*width*4'}, size=${size}px`);
-    
-    // Minimum size to ensure visibility
+        // Minimum size to ensure visibility
     return Math.max(size, 4);
   }
 
@@ -443,7 +420,6 @@ export class DeckSatelliteTracker {
         radiusUnits: 'pixels',
         pickable: true,
         onClick: (info) => {
-          console.log('Satellite clicked:', info);
           this.handleSatelliteClick(info);
         }
       })
@@ -466,7 +442,6 @@ export class DeckSatelliteTracker {
             getSize: (d: any) => d.size,
             getColor: [255, 255, 255, 255],
             onClick: (info) => {
-              console.log(`${satelliteId} clicked:`, info);
               this.handleSatelliteClick(info);
             }
           })
@@ -519,11 +494,9 @@ export class DeckSatelliteTracker {
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
-      console.log(`🎯 Started following satellite: ${satellite.name}`);
       let targetZoom: number;
       if (explicitZoom !== undefined) {
         targetZoom = explicitZoom;
-        console.log(`🔍 Using explicit zoom: ${explicitZoom}`);
       } else {
         targetZoom = preserveZoom ? this.map.getZoom() : 5; // Always zoom to level 5 when selecting a satellite
       }
@@ -642,7 +615,6 @@ export class DeckSatelliteTracker {
   }
 
   private startTracking() {
-    console.log('🚀 Starting satellite tracking with', this.satellites.size, 'satellites');
     let lastUpdate = 0;
     const UPDATE_INTERVAL = 100; // Calculate TLE positions at 10fps (every 100ms)
     
@@ -675,7 +647,7 @@ export class DeckSatelliteTracker {
       const satellite = this.satellites.get(this.followingSatellite);
       if (satellite) {
         const currentCenter = this.map.getCenter();
-        const threshold = 0.0001; // Small threshold for smooth updates
+        const threshold = 0.01; // Small threshold for smooth updates
         const deltaLng = Math.abs(currentCenter.lng - satellite.position.lng);
         const deltaLat = Math.abs(currentCenter.lat - satellite.position.lat);
         
@@ -699,9 +671,7 @@ export class DeckSatelliteTracker {
       console.warn('⚠️ Search elements not found');
       return;
     }
-    
-    console.log('🔍 Search functionality initialized');
-    
+        
     searchInput.addEventListener('input', (e) => {
       const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
       this.performSearch(query, searchResults);
@@ -718,9 +688,7 @@ export class DeckSatelliteTracker {
     resultsContainer.innerHTML = '';
     
     if (query.length < 2) return;
-    
-    console.log('🔍 Searching for:', query, 'in', this.satellites.size, 'satellites');
-    
+        
     const matches = Array.from(this.satellites.values())
       .filter(satellite => 
         satellite.name.toLowerCase().includes(query) ||
@@ -729,11 +697,6 @@ export class DeckSatelliteTracker {
       )
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 10);
-    
-    console.log('🔍 Found', matches.length, 'matches');
-    if (matches.length > 0) {
-      console.log('🔍 First match:', matches[0].name);
-    }
     
     matches.forEach(satellite => {
       const resultDiv = document.createElement('div');
