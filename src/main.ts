@@ -20,9 +20,11 @@ class SatelliteTracker3D {
   }
 
   private initializeMap() {
-    // Get initial view from URL parameters (zoom and satellite tracking)
+    // Get initial view from URL parameters (zoom, pitch, bearing, and satellite tracking)
     this.initialZoom = this.urlState.getInitialZoom();
-    console.log(`🔍 Initial zoom from URL: ${this.initialZoom}`);
+    const initialPitch = this.urlState.getInitialPitch();
+    const initialBearing = this.urlState.getInitialBearing();
+    console.log(`🔍 Initial view from URL: zoom=${this.initialZoom}, pitch=${initialPitch}, bearing=${initialBearing}`);
     
     this.map = new MapLibreMap({
       container: 'map',
@@ -33,7 +35,10 @@ class SatelliteTracker3D {
       },
       center: [0, 0], // Always start at global view
       zoom: this.initialZoom,
-      attributionControl: false // Disable default attribution control to avoid duplicates
+      pitch: initialPitch, // Use pitch from URL
+      bearing: initialBearing, // Use bearing from URL
+      attributionControl: false, // Disable default attribution control to avoid duplicates
+      maxPitch: 85 // Allow up to 85 degrees tilt for 3D terrain viewing
     });
 
     this.map.addControl(new NavigationControl(), 'top-right');
@@ -55,6 +60,7 @@ class SatelliteTracker3D {
     this.map.on('load', () => {
       console.log(`📍 Map loaded with zoom: ${this.map.getZoom()}`);
       this.addDayBasemap();
+      this.add3DTerrain();
     });
     
     // Debug zoom changes
@@ -129,6 +135,28 @@ class SatelliteTracker3D {
     if (this.map.getSource('nasa-night')) {
       this.map.removeSource('nasa-night');
     }
+  }
+
+  private add3DTerrain() {
+    // Add terrain source using Terrarium terrain data (free)
+    this.map.addSource('terrain', {
+      type: 'raster-dem',
+      tiles: [
+        'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+      ],
+      minzoom: 0,
+      maxzoom: 15,
+      tileSize: 256,
+      encoding: 'terrarium' // Terrarium encoding format
+    });
+
+    // Add terrain layer with exaggerated elevation for better visibility from space
+    this.map.setTerrain({
+      source: 'terrain',
+      exaggeration: 3 // Exaggerate elevation by 3x for dramatic effect from satellite view
+    });
+
+    console.log('🏔️ 3D terrain enabled with 3x exaggeration using Terrarium data');
   }
 
   private getFirstSatelliteLayerId(): string | undefined {
@@ -217,8 +245,10 @@ class SatelliteTracker3D {
 
   private updateURL() {
     const zoom = this.map.getZoom();
+    const pitch = this.map.getPitch();
+    const bearing = this.map.getBearing();
     const followingSatellite = this.satelliteTracker.getFollowingSatellite();
-    this.urlState.updateURL(zoom, followingSatellite);
+    this.urlState.updateURL(zoom, followingSatellite, pitch, bearing);
   }
 
   private setupURLSharing() {
