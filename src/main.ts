@@ -28,7 +28,8 @@ class SatelliteTracker3D {
         layers: []
       },
       center: [0, 0], // Always start at global view
-      zoom: initialZoom
+      zoom: initialZoom,
+      attributionControl: false // Disable default attribution control to avoid duplicates
     });
 
     this.map.addControl(new NavigationControl(), 'top-right');
@@ -44,21 +45,23 @@ class SatelliteTracker3D {
     // Remove night basemap if it exists
     this.removeNightBasemap();
     
-    // Add day basemap source and layer
-    if (!this.map.getSource('osm')) {
-      this.map.addSource('osm', {
+    // Add Geoportail France orthophotos as day basemap source and layer
+    if (!this.map.getSource('geoportail-orthos')) {
+      this.map.addSource('geoportail-orthos', {
         type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tiles: ['https://data.geopf.fr/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}'],
         tileSize: 256,
-        attribution: '© OpenStreetMap contributors'
+        minzoom: 2,
+        maxzoom: 19,
+        attribution: '<a target="_blank" href="https://www.geoportail.gouv.fr/">Geoportail France</a>'
       });
     }
     
-    if (!this.map.getLayer('osm')) {
+    if (!this.map.getLayer('geoportail-orthos')) {
       this.map.addLayer({
-        id: 'osm',
+        id: 'geoportail-orthos',
         type: 'raster',
-        source: 'osm'
+        source: 'geoportail-orthos'
       }, this.getFirstSatelliteLayerId());
     }
   }
@@ -89,11 +92,11 @@ class SatelliteTracker3D {
   }
 
   private removeDayBasemap() {
-    if (this.map.getLayer('osm')) {
-      this.map.removeLayer('osm');
+    if (this.map.getLayer('geoportail-orthos')) {
+      this.map.removeLayer('geoportail-orthos');
     }
-    if (this.map.getSource('osm')) {
-      this.map.removeSource('osm');
+    if (this.map.getSource('geoportail-orthos')) {
+      this.map.removeSource('geoportail-orthos');
     }
   }
 

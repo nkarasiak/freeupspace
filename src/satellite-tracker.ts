@@ -24,6 +24,7 @@ export class SatelliteTracker {
   private animationId: number | null = null;
   private showTrails = false;
   private followingSatellite: string | null = null;
+  private isZooming = false;
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -391,10 +392,10 @@ export class SatelliteTracker {
         console.log('Successfully loaded ISS icon - dimensions:', imageData.width, 'x', imageData.height);
         this.map.addImage('iss-icon', imageData);
         
-        // Calculate scale factor to achieve 40px height at zoom 2
-        const targetHeight = 40;
+        // Calculate scale factor to achieve 20px height at zoom 2 (half the original size)
+        const targetHeight = 20;
         const scaleForTarget = targetHeight / imageData.height;
-        console.log('ISS scale factor for 40px height:', scaleForTarget);
+        console.log('ISS scale factor for 20px height:', scaleForTarget);
         
         // Update the ISS layer with calculated scaling (108.5m length)
         this.updateISSIconSize(scaleForTarget, 108.5);
@@ -402,8 +403,8 @@ export class SatelliteTracker {
       .catch(error => {
         console.warn('Could not load ISS icon from', issImagePath, ':', error);
         this.createFallbackIcon('iss-icon', '#00ff00');
-        // Use default scaling for fallback (64px fallback icon)
-        this.updateISSIconSize(40 / 64, 108.5);
+        // Use default scaling for fallback (64px fallback icon, half size)
+        this.updateISSIconSize(20 / 64, 108.5);
       });
 
     this.map.loadImage(starlinkImagePath)
@@ -506,19 +507,41 @@ export class SatelliteTracker {
       2, scaledSize * 2.0,    // 2x size at zoom 2
       3, scaledSize * 3.0,    // 3x size at zoom 3
       4, scaledSize * 4.0,    // 4x size at zoom 4
-      5, scaledSize * 5.0,    // 5x size at zoom 5
-      6, scaledSize * 6.0,    // 6x size at zoom 6
-      7, scaledSize * 7.0,    // 7x size at zoom 7
-      8, scaledSize * 8.0,    // 8x size at zoom 8
-      9, scaledSize * 9.0,    // 9x size at zoom 9
-      10, scaledSize * 10.0,  // 10x size at zoom 10
-      15, scaledSize * 15.0,  // 15x size at zoom 15
-      20, scaledSize * 20.0   // 20x size at zoom 20
+      5, scaledSize * 10.0,   // 10x size at zoom 5 (twice the original size)
+      6, scaledSize * 15.0,   // 15x size at zoom 6 (10 * 1.5)
+      7, scaledSize * 22.5,   // 22.5x size at zoom 7 (15 * 1.5)
+      8, scaledSize * 33.75,  // 33.75x size at zoom 8 (22.5 * 1.5)
+      9, scaledSize * 50.625, // 50.625x size at zoom 9 (33.75 * 1.5)
+      10, scaledSize * 75.9375, // 75.9375x size at zoom 10 (50.625 * 1.5)
+      15, scaledSize * 574.453, // Continuing 1.5x progression
+      20, scaledSize * 4339.84  // Continuing 1.5x progression
+    ];
+  }
+
+  private getISSSizeExpression(baseSize: number) {
+    const scaledSize = baseSize * 1.33;
+    return [
+      'interpolate',
+      ['linear'],
+      ['zoom'],
+      0, scaledSize * 0.5,    // Small when zoomed out
+      1, scaledSize * 1.0,    // 1x size at zoom 1
+      2, scaledSize * 2.0,    // 2x size at zoom 2
+      3, scaledSize * 3.0,    // 3x size at zoom 3
+      4, scaledSize * 4.0,    // 4x size at zoom 4 - MAXIMUM SIZE
+      5, scaledSize * 4.0,    // Stay at 4x size at zoom 5
+      6, scaledSize * 5.0,    // Stay at 4x size at zoom 6
+      7, scaledSize * 6.0,    // Stay at 4x size at zoom 7
+      8, scaledSize * 7.0,    // Stay at 4x size at zoom 8
+      9, scaledSize * 8.0,    // Stay at 4x size at zoom 9
+      10, scaledSize * 9.0,   // Stay at 4x size at zoom 10
+      15, scaledSize * 10.0,   // Stay at 4x size at zoom 15
+      20, scaledSize * 11.0    // Stay at 4x size at zoom 20
     ];
   }
 
   private updateISSIconSize(baseScale: number, satelliteLength?: number) {
-    this.map.setLayoutProperty('satellites-iss-icon', 'icon-size', this.getUnifiedSizeExpression(baseScale, satelliteLength));
+    this.map.setLayoutProperty('satellites-iss-icon', 'icon-size', this.getISSSizeExpression(baseScale));
   }
 
   private updateStarlinkIconSize(baseScale: number, satelliteLength?: number) {
@@ -780,14 +803,14 @@ export class SatelliteTracker {
           2, 3.0,    // 2x size at zoom 2
           3, 4.0,    // 3x size at zoom 3
           4, 5.0,    // 4x size at zoom 4
-          5, 6.0,    // 5x size at zoom 5
-          6, 7.0,    // 6x size at zoom 6
-          7, 8.0,    // 7x size at zoom 7
-          8, 9.0,    // 8x size at zoom 8
-          9, 10.0,   // 9x size at zoom 9
-          10, 11.0,  // 10x size at zoom 10
-          15, 16.0,  // 15x size at zoom 15
-          20, 21.0   // 20x size at zoom 20
+          5, 12.0,   // 10x size at zoom 5 (twice the original size)
+          6, 18.0,   // 15x size at zoom 6 (12 * 1.5)
+          7, 27.0,   // 22.5x size at zoom 7 (18 * 1.5)
+          8, 40.5,   // 33.75x size at zoom 8 (27 * 1.5)
+          9, 60.75,  // 50.625x size at zoom 9 (40.5 * 1.5)
+          10, 91.125, // 75.9375x size at zoom 10 (60.75 * 1.5)
+          15, 689.34, // Continuing 1.5x progression
+          20, 5207.8  // Continuing 1.5x progression
         ],
         'circle-color': [
           'case',
@@ -822,7 +845,7 @@ export class SatelliteTracker {
           2, 3.0,    // 2x size at zoom 2
           3, 4.0,    // 3x size at zoom 3
           4, 5.0,    // 4x size at zoom 4
-          5, 6.0     // 5x size at zoom 5 (only shown until zoom 5)
+          5, 12.0    // 10x size at zoom 5 (twice the original, only shown until zoom 5)
         ],
         'circle-color': [
           'case',
@@ -1037,7 +1060,7 @@ export class SatelliteTracker {
   }
 
   private updateFollowing() {
-    if (this.followingSatellite) {
+    if (this.followingSatellite && !this.isZooming) {
       const satellite = this.satellites.get(this.followingSatellite);
       if (satellite) {
         // Get current map center to check if we need to update
@@ -1133,10 +1156,33 @@ export class SatelliteTracker {
   }
   
   private selectSatelliteFromSearch(satelliteId: string) {
+    console.log(`🔍 selectSatelliteFromSearch called with ID: ${satelliteId}`);
     const satellite = this.satellites.get(satelliteId);
     if (satellite) {
-      this.followSatellite(satelliteId);
+      console.log(`📡 Found satellite: ${satellite.name} at position:`, satellite.position);
+      this.followingSatellite = satelliteId;
+      this.isZooming = true;
+      console.log(`🎯 Started following satellite: ${satellite.name}`);
+      
+      // Zoom to level 6 and center on satellite
+      console.log(`🔍 Calling flyTo with zoom 6 to position: [${satellite.position.lng}, ${satellite.position.lat}]`);
+      this.map.flyTo({
+        center: [satellite.position.lng, satellite.position.lat],
+        zoom: 6,
+        duration: 2000,
+        essential: true
+      });
+      
+      // Reset zoom flag after animation completes
+      setTimeout(() => {
+        this.isZooming = false;
+        console.log(`✅ Zoom animation completed, tracking resumed`);
+      }, 2500);
+      
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.showSatelliteInfo(satellite);
+    } else {
+      console.error(`❌ Satellite not found with ID: ${satelliteId}`);
     }
   }
 
