@@ -1198,6 +1198,14 @@ export class SatelliteTracker {
         this.selectSatelliteFromSearch(satellite.id);
         resultsContainer.innerHTML = '';
         (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name;
+        
+        // Close the search dropdown
+        const searchContent = document.getElementById('search-content');
+        const satelliteStatus = document.querySelector('.status-item.satellite[data-section="search"]');
+        if (searchContent && satelliteStatus) {
+          searchContent.classList.remove('active');
+          satelliteStatus.classList.remove('active');
+        }
       });
       
       resultsContainer.appendChild(resultDiv);

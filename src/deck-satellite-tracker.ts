@@ -335,8 +335,26 @@ export class DeckSatelliteTracker {
       let staticLoadedCount = 0;
       
       SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
-        // Only load satellites that aren't already loaded from external sources
-        if (!this.satellites.has(sat.id)) {
+        // Find existing satellite by name (case-insensitive, ignoring spaces/dashes)
+        const normalizedConfigName = sat.name.toLowerCase().replace(/[-\s]/g, '');
+        const existingSatellite = Array.from(this.satellites.entries()).find(([, existing]) => 
+          existing.name.toLowerCase().replace(/[-\s]/g, '') === normalizedConfigName
+        );
+        
+        if (existingSatellite) {
+          // Update existing satellite with config overrides (custom name, image, etc.)
+          const [existingId, existingData] = existingSatellite;
+          this.satellites.set(existingId, {
+            ...existingData,
+            // Override with custom config properties
+            shortname: sat.shortname || existingData.shortname,
+            image: sat.image || existingData.image,
+            dimensions: sat.dimensions || existingData.dimensions,
+            // Keep the external TLE data as it's more current
+          });
+          console.log(`🔧 Applied config override for ${sat.name} (${existingId})`);
+        } else if (!this.satellites.has(sat.id)) {
+          // Add new satellite that doesn't exist in external sources
           try {
             const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
             
@@ -353,6 +371,7 @@ export class DeckSatelliteTracker {
             });
             
             staticLoadedCount++;
+            console.log(`➕ Added new static satellite: ${sat.name} (${sat.id})`);
             
           } catch (error) {
             console.warn(`⚠️ Error loading static satellite ${sat.id}:`, error);
@@ -668,12 +687,16 @@ export class DeckSatelliteTracker {
         const altitude = smoothPos ? smoothPos.altitude : sat.altitude;
         const velocity = smoothPos ? smoothPos.velocity : sat.velocity;
         
+        // Scale altitude for better visibility - high altitude satellites are too far to see
+        // Use much more aggressive scaling to bring satellites close to surface
+        const scaledAltitude = Math.sqrt(altitude) * 5000; // Square root scaling brings high satellites much closer
+        
         return {
-          position: [lng, lat, altitude * 1000] as [number, number, number], // Convert km to meters
+          position: [lng, lat, scaledAltitude] as [number, number, number], // Use scaled altitude in meters
           id: sat.id,
           name: sat.name,
           type: sat.type,
-          altitude: altitude,
+          altitude: altitude, // Keep original altitude for display
           velocity: velocity,
           length: sat.dimensions.length,
           color: this.getColorForType(sat.type),
@@ -761,14 +784,17 @@ export class DeckSatelliteTracker {
           const altitude = smoothPos ? smoothPos.altitude : satellite.altitude;
           const velocity = smoothPos ? smoothPos.velocity : satellite.velocity;
             
+          // Scale altitude for better visibility - high altitude satellites are too far to see
+          const scaledAltitude = Math.sqrt(altitude) * 5000; // Square root scaling brings high satellites much closer
+          
           const data = {
-            position: [lng, lat, altitude * 1000], // Convert km to meters for deck.gl
+            position: [lng, lat, scaledAltitude], // Use scaled altitude in meters for deck.gl
             icon: satelliteId,
             size: iconSize,
             id: satellite.id,
             name: satellite.name,
             type: satellite.type,
-            altitude: altitude,
+            altitude: altitude, // Keep original altitude for display
             velocity: velocity
           };
           iconData.push(data);
@@ -1495,6 +1521,14 @@ export class DeckSatelliteTracker {
         this.followSatellite(satellite.id);
         resultsContainer.innerHTML = '';
         (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name;
+        
+        // Close the search dropdown
+        const searchContent = document.getElementById('search-content');
+        const satelliteStatus = document.querySelector('.status-item.satellite[data-section="search"]');
+        if (searchContent && satelliteStatus) {
+          searchContent.classList.remove('active');
+          satelliteStatus.classList.remove('active');
+        }
       });
       
       resultsContainer.appendChild(resultDiv);
