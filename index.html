@@ -70,109 +70,108 @@
         border-radius: 0 0 4px 0;
       }
       
-      /* Retro Terminal Console */
+      /* Simple Top Banner */
       #cockpit-panel {
         position: fixed;
-        bottom: 0;
+        top: 0;
         left: 0;
         right: 0;
-        height: 80px;
-        background: rgba(0, 20, 0, 0.95);
-        border-top: 2px solid #00ff00;
+        height: 40px;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 1000;
         pointer-events: auto;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 16px 24px;
-        font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
-        box-shadow: 0 -4px 20px rgba(0, 255, 0, 0.1);
+        padding: 0 20px;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
       }
       
-      /* Terminal Console Layout */
-      #terminal-display {
+      /* Top Banner Layout */
+      #banner-display {
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: center;
         width: 100%;
-        max-width: 800px;
-        gap: 32px;
+        max-width: 1200px;
+        gap: 40px;
+        font-size: 13px;
+        color: #ffffff;
       }
       
-      /* Terminal Data Block */
-      .terminal-block {
+      /* Banner Info Block */
+      .banner-item {
         display: flex;
-        flex-direction: column;
-        color: #00ff00;
-        font-size: 12px;
-        line-height: 1.2;
-        text-align: left;
-        min-width: 120px;
+        align-items: center;
+        gap: 6px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
       }
       
-      .terminal-block.tracking {
+      .banner-item.tracking {
         cursor: pointer;
-        min-width: 200px;
-        text-align: center;
+        padding: 6px 12px;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
       
-      .terminal-block.tracking:hover {
-        color: #00ffaa;
-        text-shadow: 0 0 8px #00ff00;
+      .banner-item.tracking:hover {
+        background: rgba(0, 150, 255, 0.15);
+        border-color: rgba(0, 150, 255, 0.3);
+        transform: translateY(-1px);
       }
       
-      /* Terminal Labels and Values */
-      .terminal-label {
-        color: #00aa00;
-        font-size: 10px;
-        margin-bottom: 2px;
-        opacity: 0.8;
-      }
-      
-      .terminal-value {
-        color: #00ff00;
-        font-size: 14px;
-        font-weight: bold;
-        text-shadow: 0 0 4px #00ff00;
-      }
-      
-      .terminal-unit {
-        color: #00aa00;
-        font-size: 10px;
-        opacity: 0.7;
-        margin-left: 4px;
-      }
-      
-      /* Terminal Cursor Animation */
-      .terminal-cursor {
-        display: inline-block;
-        background-color: #00ff00;
-        width: 8px;
-        height: 12px;
-        margin-left: 4px;
-        animation: blink 1s infinite;
-      }
-      
-      @keyframes blink {
-        0%, 50% { opacity: 1; }
-        51%, 100% { opacity: 0; }
-      }
-      
-      /* Terminal Status Indicators */
-      .terminal-status {
-        color: #00ff00;
-        font-size: 10px;
-        opacity: 0.6;
-      }
-      
-      .terminal-name {
-        color: #00ffaa;
+      /* Banner Labels and Values */
+      .banner-label {
+        color: #aaaaaa;
         font-size: 11px;
-        text-shadow: 0 0 6px #00ff00;
-        max-width: 180px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      
+      .banner-value {
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      
+      .banner-unit {
+        color: #aaaaaa;
+        font-size: 11px;
+        margin-left: 2px;
+      }
+      
+      /* Banner Separator */
+      .banner-separator {
+        width: 1px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.2);
+        margin: 0 8px;
+      }
+      
+      /* Tracking Name Styling */
+      .tracking-name {
+        color: #00d4ff;
+        font-weight: 600;
+        max-width: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      
+      /* Icon Styling */
+      .banner-icon {
+        font-size: 14px;
+        opacity: 0.8;
       }
 
       /* Removed control buttons - now using gauge-only design */
@@ -181,27 +180,29 @@
       /* Removed section titles - using gauge design */
 
       /* Modal Dropdown Content */
-      /* Terminal Search Dropdown */
+      /* Top Banner Search Dropdown */
       .section-content {
         position: fixed;
-        bottom: 90px;
+        top: 50px;
         left: 50%;
-        transform: translateX(-50%) translateY(20px) scale(0.95);
+        transform: translateX(-50%) translateY(-10px) scale(0.95);
         width: 400px;
         max-width: 90vw;
-        background: rgba(0, 20, 0, 0.98);
-        border: 2px solid #00ff00;
-        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
         padding: 16px;
-        box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.8), 
-                    0 -4px 16px rgba(0, 255, 0, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 
+                    0 4px 16px rgba(0, 0, 0, 0.3);
         opacity: 0;
         visibility: hidden;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         z-index: 2000;
         max-height: 300px;
         overflow-y: auto;
-        font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       }
 
       .section-content.active {
@@ -210,18 +211,18 @@
         visibility: visible;
       }
 
-      /* Terminal dropdown arrow */
-      .section-content::after {
+      /* Top banner dropdown arrow */
+      .section-content::before {
         content: '';
         position: absolute;
-        top: 100%;
+        top: -8px;
         left: 50%;
         transform: translateX(-50%);
         width: 0;
         height: 0;
-        border-left: 10px solid transparent;
-        border-right: 10px solid transparent;
-        border-top: 10px solid #00ff00;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-bottom: 8px solid rgba(0, 0, 0, 0.95);
       }
       
       /* Modern Dashboard Buttons */
@@ -286,68 +287,64 @@
       
       #satellite-search {
         width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #00aa00;
-        border-radius: 2px;
-        background: rgba(0, 40, 0, 0.8);
-        color: #00ff00;
-        font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
-        font-size: 12px;
+        padding: 10px 14px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        color: #ffffff;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 13px;
         margin-bottom: 10px;
         transition: all 0.2s ease;
       }
       
       #satellite-search::placeholder {
-        color: #00aa00;
+        color: rgba(255, 255, 255, 0.5);
       }
       
       #satellite-search:focus {
         outline: none;
-        border-color: #00ff00;
-        background: rgba(0, 60, 0, 0.9);
-        box-shadow: 0 0 8px rgba(0, 255, 0, 0.3);
-        text-shadow: 0 0 4px #00ff00;
+        border-color: #00d4ff;
+        background: rgba(0, 212, 255, 0.08);
+        box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
       }
       
       #search-results {
         max-height: 160px;
         overflow-y: auto;
         scrollbar-width: thin;
-        scrollbar-color: #00aa00 transparent;
-        border-radius: 2px;
+        scrollbar-color: rgba(0, 212, 255, 0.4) transparent;
+        border-radius: 6px;
         padding: 4px;
-        background: rgba(0, 40, 0, 0.5);
-        border: 1px solid #00aa00;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
       
       .search-result {
-        padding: 6px 8px;
+        padding: 8px 10px;
         cursor: pointer;
-        border-radius: 2px;
-        margin: 1px 0;
-        background: rgba(0, 60, 0, 0.3);
-        color: #00ff00;
+        border-radius: 4px;
+        margin: 2px 0;
+        background: rgba(255, 255, 255, 0.04);
+        color: #ffffff;
         font-size: 11px;
-        font-family: 'Courier New', 'Monaco', 'Lucida Console', monospace;
         border: 1px solid transparent;
         transition: all 0.15s ease;
         border-left: 2px solid transparent;
       }
       
       .search-result:hover {
-        background: rgba(0, 80, 0, 0.6);
-        border-color: #00aa00;
-        border-left-color: #00ff00;
+        background: rgba(0, 150, 255, 0.12);
+        border-color: rgba(0, 150, 255, 0.2);
+        border-left-color: #00d4ff;
         transform: translateX(2px);
-        text-shadow: 0 0 4px #00ff00;
       }
       
       .search-result.following {
-        background: rgba(0, 100, 0, 0.7);
-        border-color: #00ff00;
-        border-left-color: #00ffaa;
-        color: #00ffaa;
-        text-shadow: 0 0 6px #00ff00;
+        background: rgba(0, 212, 255, 0.15);
+        border-color: rgba(0, 212, 255, 0.3);
+        border-left-color: #00d4ff;
+        color: #ffffff;
       }
       
 
@@ -414,43 +411,50 @@
         background: rgba(102, 102, 102, 0.15);
       }
 
-      /* Responsive Terminal Layout */
+      /* Responsive Top Banner Layout */
       @media (max-width: 768px) {
-        #terminal-display {
+        #banner-display {
           gap: 20px;
         }
         
-        .terminal-block {
-          min-width: 80px;
-        }
-        
-        .terminal-block.tracking {
-          min-width: 120px;
-        }
-        
-        .terminal-value {
+        .banner-item {
           font-size: 12px;
+        }
+        
+        .banner-label {
+          font-size: 10px;
+        }
+        
+        .tracking-name {
+          max-width: 120px;
         }
       }
       
       @media (max-width: 480px) {
-        #terminal-display {
-          flex-direction: column;
-          gap: 8px;
-          text-align: center;
-        }
-        
         #cockpit-panel {
-          height: 120px;
-          padding: 12px 16px;
+          height: 60px;
+          padding: 0 12px;
         }
         
-        .terminal-block {
-          min-width: auto;
+        #banner-display {
+          gap: 12px;
         }
         
-        .terminal-block.tracking {
-          min-width: auto;
+        .banner-separator {
+          display: none;
+        }
+        
+        .banner-item {
+          font-size: 11px;
+          gap: 4px;
+        }
+        
+        .banner-label {
+          display: none;
+        }
+        
+        .tracking-name {
+          max-width: 80px;
         }
       }
 
@@ -561,26 +565,33 @@
       <span class="show-btn-text">COCKPIT</span>
     </button>
     
-    <!-- Retro Terminal Console -->
+    <!-- Simple Top Banner -->
     <div id="cockpit-panel">
-      <!-- Terminal Display Layout -->
-      <div id="terminal-display">
-        <!-- Left: Altitude -->
-        <div class="terminal-block">
-          <div class="terminal-label">ALT:</div>
-          <div class="terminal-value"><span id="tracked-altitude">---</span><span class="terminal-unit">km</span></div>
+      <!-- Single Line Banner Layout -->
+      <div id="banner-display">
+        <!-- Altitude -->
+        <div class="banner-item">
+          <span class="banner-icon">📐</span>
+          <span class="banner-label">Alt</span>
+          <span class="banner-value"><span id="tracked-altitude">---</span><span class="banner-unit">km</span></span>
         </div>
         
-        <!-- Center: Tracking Status (Clickable) -->
-        <div class="terminal-block tracking" data-section="search" title="Click to change satellite">
-          <div class="terminal-label">TRACKING:</div>
-          <div class="terminal-name" id="tracked-name">NO_TARGET<span class="terminal-cursor"></span></div>
+        <div class="banner-separator"></div>
+        
+        <!-- Tracking (Clickable) -->
+        <div class="banner-item tracking" data-section="search" title="Click to change satellite">
+          <span class="banner-icon">🎯</span>
+          <span class="banner-label">Tracking</span>
+          <span class="tracking-name" id="tracked-name">No satellite selected</span>
         </div>
         
-        <!-- Right: Speed -->
-        <div class="terminal-block">
-          <div class="terminal-label">SPD:</div>
-          <div class="terminal-value"><span id="tracked-speed">---</span><span class="terminal-unit">km/s</span></div>
+        <div class="banner-separator"></div>
+        
+        <!-- Speed -->
+        <div class="banner-item">
+          <span class="banner-icon">⚡</span>
+          <span class="banner-label">Speed</span>
+          <span class="banner-value"><span id="tracked-speed">---</span><span class="banner-unit">km/s</span></span>
         </div>
       </div>
       
@@ -653,10 +664,10 @@
           });
         });
 
-        // Handle terminal tracking block click
-        const trackingBlock = document.querySelector('.terminal-block.tracking[data-section="search"]');
-        if (trackingBlock) {
-          trackingBlock.addEventListener('click', function(e) {
+        // Handle banner tracking item click
+        const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
+        if (trackingItem) {
+          trackingItem.addEventListener('click', function(e) {
             e.stopPropagation();
             const content = document.getElementById('search-content');
             
@@ -695,8 +706,8 @@
             return;
           }
           
-          // Don't close if clicking on a terminal block with data-section
-          if (e.target.closest('.terminal-block[data-section]')) {
+          // Don't close if clicking on a banner item with data-section
+          if (e.target.closest('.banner-item[data-section]')) {
             return;
           }
           
