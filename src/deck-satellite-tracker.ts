@@ -12,6 +12,7 @@ import { SmoothCamera } from './smooth-camera';
 export interface SatelliteData {
   id: string;
   name: string;
+  shortname?: string; // Optional short display name
   type: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
   position: LngLat;
   altitude: number;
@@ -67,7 +68,7 @@ export class DeckSatelliteTracker {
   private lastLayerUpdateZoom = -1;
   private lastLayerUpdateBounds: any = null;
   private layerUpdateThrottle = 0;
-  private readonly LAYER_UPDATE_THROTTLE = 33; // ~30fps layer updates for smooth panning
+  private readonly LAYER_UPDATE_THROTTLE = 100; // 10fps layer updates to prevent spam
   
   // Performance optimizers
   private performanceManager = new PerformanceManager();
@@ -228,7 +229,8 @@ export class DeckSatelliteTracker {
     this.loadSampleSatellites();
     this.loadSatelliteIcons();
     this.updateLayers();
-    this.startTracking();
+    // Start background satellite position updates (not camera tracking)
+    this.startBackgroundUpdates();
     
     // Setup search and filters after satellites are loaded
     setTimeout(() => {
@@ -407,7 +409,7 @@ export class DeckSatelliteTracker {
           height: canvas.height
         });
         
-        this.updateLayers(); // Refresh layers with icon
+        this.updateLayers(true); // Refresh layers with icon
       }
     };
     img.onerror = (error) => {
@@ -519,20 +521,29 @@ export class DeckSatelliteTracker {
     
     // Filter out satellites that should show as icons instead of circles
     const pointSatellites = filteredSatellites.filter(lodSat => {
-      return !this.lodManager.shouldShowIcon(lodSat, zoom) || lodSat.id === 'iss'; // ISS handled separately
+      return !this.lodManager.shouldShowIcon(lodSat, zoom);
     });
     
     const points = pointSatellites
       .map(lodSat => {
         const sat = this.satellites.get(lodSat.id)!;
         const baseSize = this.lodManager.getCircleSize(lodSat, zoom, 2); // Use small base size for circles
+        
         // Apply tracked satellite size multiplier if this is the followed satellite
         const sizeMultiplier = this.followingSatellite === lodSat.id ? 
           this.trackedSatelliteSizeMultiplier : this.satelliteSizeMultiplier;
         const size = baseSize * sizeMultiplier;
         
-        // Use interpolated position for smoother movement if available
-        const smoothPos = this.getSmoothSatellitePosition(lodSat.id);
+        // Use smooth position for followed satellites, interpolated for others
+        let smoothPos = null;
+        if (this.followingSatellite === lodSat.id && this.smoothTracker.isTracking()) {
+          // Use smooth tracker for followed satellite
+          smoothPos = this.smoothTracker.getPredictedPosition();
+        } else {
+          // Use orbital interpolator for other satellites
+          smoothPos = this.getSmoothSatellitePosition(lodSat.id);
+        }
+        
         const lng = smoothPos ? smoothPos.longitude : sat.position.lng;
         const lat = smoothPos ? smoothPos.latitude : sat.position.lat;
         const altitude = smoothPos ? smoothPos.altitude : sat.altitude;
@@ -554,7 +565,10 @@ export class DeckSatelliteTracker {
     // Update performance metrics
     this.performanceManager.setSatelliteCount(points.length);
     
-    console.log(`🎯 Rendering ${points.length} satellites (quality: ${this.performanceManager.getCurrentQuality()}, zoom: ${zoom.toFixed(1)})`);
+    // Only log occasionally to avoid spam
+    if (Math.random() < 0.01) { // 1% chance
+      console.log(`🎯 Rendering ${points.length} satellites (quality: ${this.performanceManager.getCurrentQuality()}, zoom: ${zoom.toFixed(1)})`);
+    }
     return points;
   }
 
@@ -589,10 +603,10 @@ export class DeckSatelliteTracker {
         let shouldShowIcon = false;
         if (satelliteId === 'iss') {
           shouldShowIcon = true; // Always show ISS
-        } else if (zoom >= 5) {
-          shouldShowIcon = true; // Show all satellite images at zoom 5+
         } else if (zoom >= 4) {
-          // At zoom 4, only show every 3rd satellite image to reduce load
+          shouldShowIcon = true; // Show all satellite images at zoom 4+
+        } else if (zoom >= 3) {
+          // At zoom 3, only show every 3rd satellite image to reduce load
           const satelliteIndex = Array.from(this.satelliteIcons.keys()).indexOf(satelliteId);
           shouldShowIcon = satelliteIndex % 3 === 0;
         }
@@ -609,8 +623,16 @@ export class DeckSatelliteTracker {
             this.trackedSatelliteSizeMultiplier : this.satelliteSizeMultiplier;
           const iconSize = baseIconSize * sizeMultiplier;
           
-          // Use interpolated position for smoother icon movement
-          const smoothPos = this.getSmoothSatellitePosition(satelliteId);
+          // Use smooth position for followed satellites, interpolated for others
+          let smoothPos = null;
+          if (this.followingSatellite === satelliteId && this.smoothTracker.isTracking()) {
+            // Use smooth tracker for followed satellite
+            smoothPos = this.smoothTracker.getPredictedPosition();
+          } else {
+            // Use orbital interpolator for other satellites
+            smoothPos = this.getSmoothSatellitePosition(satelliteId);
+          }
+          
           const lng = smoothPos ? smoothPos.longitude : satellite.position.lng;
           const lat = smoothPos ? smoothPos.latitude : satellite.position.lat;
           const altitude = smoothPos ? smoothPos.altitude : satellite.altitude;
@@ -633,7 +655,10 @@ export class DeckSatelliteTracker {
       }
     });
     
-    console.log(`🖼️ Rendering ${iconData.length} satellite images (zoom: ${zoom.toFixed(1)})`);
+    // Only log occasionally to avoid spam
+    if (Math.random() < 0.01) { // 1% chance
+      console.log(`🖼️ Rendering ${iconData.length} satellite images (zoom: ${zoom.toFixed(1)})`);
+    }
     return iconData;
   }
 
@@ -697,8 +722,14 @@ export class DeckSatelliteTracker {
       
       if (!shouldUpdate) return;
     } else {
-      // Light throttling for force updates (30fps max)
-      if (now - this.layerUpdateThrottle < 33) return;
+      // Allow 30fps updates when tracking any satellite for smooth tracking
+      if (this.followingSatellite) {
+        // Allow 30fps updates for smooth tracking
+        if (now - this.layerUpdateThrottle < 33) return;
+      } else {
+        // More aggressive throttling for force updates (10fps max)
+        if (now - this.layerUpdateThrottle < 100) return;
+      }
     }
     
     this.layerUpdateThrottle = now;
@@ -796,6 +827,8 @@ export class DeckSatelliteTracker {
         targetZoom = preserveZoom ? this.map.getZoom() : 5; // Always zoom to level 5 when selecting a satellite
       }
       
+      console.log('🚀 Starting ultra-smooth tracking for:', satellite.name);
+      
       // Start ultra-smooth tracking immediately
       this.startUltraSmoothTracking(satellite);
       
@@ -806,10 +839,12 @@ export class DeckSatelliteTracker {
       }, 2000).then(() => {
         // Camera animation complete, begin smooth tracking
         console.log('🎬 Camera positioned, ultra-smooth tracking active');
+        console.log('📊 Smooth tracker status:', this.smoothTracker.isTracking());
+        console.log('📊 Smooth camera status:', this.smoothCamera.isTracking());
       });
       
       this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
-      this.updateLayers(); // Update layers to show orbit path if enabled
+      this.updateLayers(true); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
       if (this.onTrackingChangeCallback) {
@@ -839,15 +874,15 @@ export class DeckSatelliteTracker {
       }, 3000).then(() => {
         // Camera animation complete, ultra-smooth tracking active
         console.log('🎬 Camera positioned with animation, ultra-smooth tracking active');
+        
+        // Notify about tracking change AFTER animation completes
+        if (this.onTrackingChangeCallback) {
+          this.onTrackingChangeCallback();
+        }
       });
       
       this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
-      this.updateLayers(); // Update layers to show orbit path if enabled
-      
-      // Notify about tracking change
-      if (this.onTrackingChangeCallback) {
-        this.onTrackingChangeCallback();
-      }
+      this.updateLayers(true); // Update layers to show orbit path if enabled
     }
   }
 
@@ -884,6 +919,24 @@ export class DeckSatelliteTracker {
     this.smoothTracker.stopTracking();
     this.smoothCamera.stopSmoothTracking();
     
+    // Apply 30fps smooth tracking for all satellites
+    
+    // Create smooth tracker with callback to update satellite data and camera
+    const smoothTracker = new SmoothTracker((position: PredictivePosition) => {
+      // Update the main satellite data with smooth position
+      const sat = this.satellites.get(satellite.id);
+      if (sat) {
+        sat.position = new LngLat(position.longitude, position.latitude);
+        sat.altitude = position.altitude;
+        sat.velocity = position.velocity;
+      }
+      
+      // Update smooth camera
+      this.smoothCamera.updateTargetPosition(position);
+    });
+    
+    this.smoothTracker = smoothTracker;
+    
     // Start the smooth tracker with satellite TLE data
     this.smoothTracker.startTracking(satellite.id, satellite.tle1, satellite.tle2);
     
@@ -893,7 +946,7 @@ export class DeckSatelliteTracker {
       this.smoothCamera.startSmoothTracking(initialPosition);
     }
     
-    console.log(`🚀 Ultra-smooth tracking active for ${satellite.name} - 60fps video-like performance`);
+    console.log(`🚀 Smooth tracking active for ${satellite.name} - 30fps smooth performance`);
   }
 
 
@@ -1018,20 +1071,8 @@ export class DeckSatelliteTracker {
   }
 
   private processSatelliteUpdates(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
-    // Always update followed satellite in main thread for ultra-smooth tracking
-    if (this.followingSatellite) {
-      const followedSat = this.satellites.get(this.followingSatellite);
-      if (followedSat) {
-        // Calculate fresh position every frame for followed satellite
-        const position = this.calculateSatellitePosition(followedSat.tle1, followedSat.tle2, followedSat.id);
-        followedSat.position = new LngLat(position.longitude, position.latitude);
-        followedSat.altitude = position.altitude;
-        followedSat.velocity = position.velocity;
-        
-        // Force immediate layer update for followed satellite
-        this.updateLayers();
-      }
-    }
+    // Skip position updates for tracked satellite - smooth tracking handles it
+    // Only update other satellites for rendering
     
     if (!this.satelliteWorker) {
       // Fallback to main thread calculations
@@ -1076,7 +1117,7 @@ export class DeckSatelliteTracker {
       });
     }
     
-    // Always update layers after processing
+    // Update layers after processing (throttled)
     this.updateLayers();
   }
 
@@ -1086,16 +1127,10 @@ export class DeckSatelliteTracker {
     let satelliteIndex = 0;
     const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
     
-    // First, always update followed satellite
-    if (this.followingSatellite) {
-      const followedSat = this.satellites.get(this.followingSatellite);
-      if (followedSat) {
-        const position = this.calculateSatellitePosition(followedSat.tle1, followedSat.tle2, followedSat.id);
-        followedSat.position = new LngLat(position.longitude, position.latitude);
-        followedSat.altitude = position.altitude;
-        followedSat.velocity = position.velocity;
-        updatedCount++;
-      }
+    // Skip followed satellite - smooth tracking handles it completely
+    // The ultra-smooth tracking system will update the followed satellite at 120fps
+    if (this.followingSatellite && this.smoothTracker.isTracking()) {
+      console.log('🎯 Skipping followed satellite in background updates - smooth tracking active');
     }
     
     for (const [id, sat] of this.satellites) {
@@ -1123,14 +1158,18 @@ export class DeckSatelliteTracker {
     }
     
     this.updateLayers();
-    console.log(`🛰️ Updated ${updatedCount} satellites (main thread fallback)`);
+    // Only log occasionally to avoid spam
+    if (Math.random() < 0.02) { // 2% chance
+      console.log(`🛰️ Updated ${updatedCount} satellites (main thread fallback)`);
+    }
   }
 
-  private startTracking() {
+  // Background satellite position updates (separate from camera tracking)
+  private startBackgroundUpdates() {
     let lastUpdate = 0;
     let lastFullUpdate = 0;
     
-    const FULL_UPDATE_INTERVAL = 1000; // 1fps for background updates (more frequent for better interpolation)
+    const FULL_UPDATE_INTERVAL = 1000; // 1fps for background updates
     
     const updatePositions = () => {
       const now = Date.now();
@@ -1145,7 +1184,7 @@ export class DeckSatelliteTracker {
         const bounds = this.map.getBounds();
         const zoom = this.map.getZoom();
         
-        // Use worker-based batch updating for performance
+        // Update satellite positions (but not camera - that's handled by smooth tracking)
         this.processSatelliteUpdates(bounds, zoom, now, lastFullUpdate, FULL_UPDATE_INTERVAL, UPDATE_INTERVAL);
 
         if (now - lastFullUpdate >= FULL_UPDATE_INTERVAL) {
@@ -1154,13 +1193,6 @@ export class DeckSatelliteTracker {
 
         lastUpdate = now;
       }
-      
-      // Continue following satellite even when paused
-      if (!this.isPaused) {
-        this.updateFollowing();
-      }
-      
-      // Performance monitoring handled by PerformanceManager
       
       // Cleanup interpolator data periodically (every 60 seconds)
       if (now % 60000 < UPDATE_INTERVAL) {
@@ -1181,9 +1213,7 @@ export class DeckSatelliteTracker {
   }
 
 
-  private updateFollowing() {
-    // Tracking is now handled by ultra-smooth tracking system
-  }
+  // updateFollowing removed - handled by ultra-smooth tracking system
 
   private setupSearchFunctionality() {
     const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
@@ -1343,7 +1373,7 @@ export class DeckSatelliteTracker {
   increaseSatelliteSize() {
     if (this.followingSatellite) {
       this.trackedSatelliteSizeMultiplier = Math.min(this.trackedSatelliteSizeMultiplier * 1.25, this.MAX_SIZE_MULTIPLIER);
-      this.updateLayers();
+      this.updateLayers(true);
       const satellite = this.satellites.get(this.followingSatellite);
       this.showMessage(`🔍 ${satellite?.name || 'Tracked satellite'} size: ${(this.trackedSatelliteSizeMultiplier * 100).toFixed(0)}%`, 'info');
     } else {
@@ -1354,7 +1384,7 @@ export class DeckSatelliteTracker {
   decreaseSatelliteSize() {
     if (this.followingSatellite) {
       this.trackedSatelliteSizeMultiplier = Math.max(this.trackedSatelliteSizeMultiplier / 1.25, this.MIN_SIZE_MULTIPLIER);
-      this.updateLayers();
+      this.updateLayers(true);
       const satellite = this.satellites.get(this.followingSatellite);
       this.showMessage(`🔍 ${satellite?.name || 'Tracked satellite'} size: ${(this.trackedSatelliteSizeMultiplier * 100).toFixed(0)}%`, 'info');
     } else {
@@ -1365,7 +1395,7 @@ export class DeckSatelliteTracker {
   resetSatelliteSize() {
     if (this.followingSatellite) {
       this.trackedSatelliteSizeMultiplier = 1.0;
-      this.updateLayers();
+      this.updateLayers(true);
       const satellite = this.satellites.get(this.followingSatellite);
       this.showMessage(`🔍 ${satellite?.name || 'Tracked satellite'} size reset to 100%`, 'info');
     } else {

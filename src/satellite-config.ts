@@ -2,6 +2,7 @@
 export interface SatelliteConfig {
   id: string;
   name: string;
+  shortname?: string; // Optional short display name
   type: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
   tle1: string;
   tle2: string;
@@ -18,6 +19,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
   {
     id: 'iss',
     name: 'International Space Station',
+    shortname: 'ISS',
     type: 'scientific',
     tle1: '1 25544U 98067A   25214.09653981  .00010888  00000+0  19653-3 0  9996',
     tle2: '2 25544  51.6345  79.5266 0001736 142.9190 217.1919 15.50282964522285',
@@ -27,6 +29,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
   {
     id: 'hubble',
     name: 'Hubble Space Telescope',
+    shortname: 'HUBBLE',
     type: 'scientific',
     tle1: '1 20580U 90037B   25214.12345678  .00001234  00000-0  56789-4 0  9991',
     tle2: '2 20580  28.4690 123.4567 0002345  78.9012 281.2345 15.09876543123456',
@@ -377,6 +380,7 @@ function generateStarlinkConstellation(): SatelliteConfig[] {
       starlinks.push({
         id: `starlink-${satelliteId}`,
         name: `Starlink-${satelliteId}`,
+        shortname: `SL-${satelliteId}`,
         type: 'communication',
         tle1: `1 ${44000 + satelliteId}U 19074${String.fromCharCode(65 + (satelliteId % 26))}   ${epochDays.toFixed(8)}  .00002000  00000-0  14000-3 0  9999`,
         tle2: `2 ${44000 + satelliteId}  53.0000 ${raan.toFixed(4)} 0001500  ${(satelliteId % 360).toFixed(4)} ${meanAnomaly.toFixed(4)} 15.05000000${(satelliteId * 1000).toString().padStart(8, '0')}`,
@@ -401,6 +405,7 @@ function generateStarlinkConstellation(): SatelliteConfig[] {
       starlinks.push({
         id: `starlink-${satelliteId}`,
         name: `Starlink-${satelliteId}`,
+        shortname: `SL-${satelliteId}`,
         type: 'communication',
         tle1: `1 ${44000 + satelliteId}U 20074${String.fromCharCode(65 + (satelliteId % 26))}   ${epochDays.toFixed(8)}  .00001800  00000-0  13000-3 0  9999`,
         tle2: `2 ${44000 + satelliteId}  53.2000 ${raan.toFixed(4)} 0001400  ${(satelliteId % 360).toFixed(4)} ${meanAnomaly.toFixed(4)} 15.06000000${(satelliteId * 1000).toString().padStart(8, '0')}`,
@@ -425,6 +430,7 @@ function generateStarlinkConstellation(): SatelliteConfig[] {
       starlinks.push({
         id: `starlink-${satelliteId}`,
         name: `Starlink-${satelliteId}`,
+        shortname: `SL-${satelliteId}`,
         type: 'communication',
         tle1: `1 ${44000 + satelliteId}U 21074${String.fromCharCode(65 + (satelliteId % 26))}   ${epochDays.toFixed(8)}  .00001600  00000-0  12000-3 0  9999`,
         tle2: `2 ${44000 + satelliteId}  70.0000 ${raan.toFixed(4)} 0001300  ${(satelliteId % 360).toFixed(4)} ${meanAnomaly.toFixed(4)} 15.07000000${(satelliteId * 1000).toString().padStart(8, '0')}`,

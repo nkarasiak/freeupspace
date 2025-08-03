@@ -9,6 +9,7 @@ class SatelliteTracker3D {
   private isDayMode = true;
   private urlState = new URLState();
   private initialZoom!: number;
+  private isInitializing = true;
 
   constructor() {
     this.initializeMap();
@@ -255,8 +256,10 @@ class SatelliteTracker3D {
       setTimeout(() => {
         this.satelliteTracker.initialize();
         
-        // Restore satellite tracking from URL if specified
-        const satelliteToTrack = this.urlState.getInitialSatellite();
+        // Restore satellite tracking from URL if specified, otherwise default to ISS
+        const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss';
+        const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
+        
         if (satelliteToTrack) {
           // Give a bit more time for satellites to be loaded
           setTimeout(() => {
@@ -264,10 +267,15 @@ class SatelliteTracker3D {
             // Check if satellite exists before trying to follow it
             const satellites = this.satelliteTracker.getSatellites();
             if (satellites.has(satelliteToTrack)) {
+              // Use default zoom of 1.7 for ISS if not specified in URL
+              const zoomToUse = isDefaultISS ? 1.7 : this.initialZoom;
+              
+              console.log(`🎯 Tracking ${satelliteToTrack} with zoom: ${zoomToUse} (isDefaultISS: ${isDefaultISS})`);
+              
               // Use zoom, pitch, and bearing from URL for smooth flyTo animation
               this.satelliteTracker.followSatelliteWithAnimation(
                 satelliteToTrack, 
-                this.initialZoom,
+                zoomToUse,
                 this.urlState.getInitialPitch(),
                 this.urlState.getInitialBearing()
               );
@@ -277,14 +285,13 @@ class SatelliteTracker3D {
               this.urlState.removeInvalidSatellite();
             }
             
-            // End initialization phase after satellite tracking is set up
+            // End initialization phase after satellite tracking is set up (or attempted)
             setTimeout(() => {
               this.urlState.setInitializing(false);
-            }, 500);
+              this.isInitializing = false; // Allow URL updates after animation completes
+              console.log(`✅ Initialization complete - URL updates enabled`);
+            }, 4000); // Wait longer for flyTo animation to complete (3s + buffer)
           }, 1000);
-        } else {
-          // No satellite to track, end initialization immediately
-          this.urlState.setInitializing(false);
         }
         
         this.updateUI();
@@ -294,10 +301,18 @@ class SatelliteTracker3D {
   }
 
   private updateURL() {
+    // Skip URL updates during initialization to prevent premature updates
+    if (this.isInitializing) {
+      console.log(`📍 Skipping URL update during initialization`);
+      return;
+    }
+    
     const zoom = this.map.getZoom();
     const pitch = this.map.getPitch();
     const bearing = this.map.getBearing();
     const followingSatellite = this.satelliteTracker.getFollowingSatellite();
+    
+    console.log(`📍 Updating URL - zoom: ${zoom.toFixed(2)}, satellite: ${followingSatellite}`);
     
     this.urlState.updateURL(zoom, followingSatellite, pitch, bearing);
   }
@@ -405,21 +420,12 @@ class SatelliteTracker3D {
       if (followingSatellite) {
         const satellite = satellites.get(followingSatellite);
         if (satellite) {
-          // Check if ultra-smooth tracking is active
-          const trackingQuality = this.satelliteTracker.getTrackingQuality();
-          const isUltraSmooth = trackingQuality > 0;
-          const displayName = satellite.name.substring(0, 8).toUpperCase();
-          
-          if (isUltraSmooth) {
-            const qualityPercent = Math.round(trackingQuality * 100);
-            trackingStatusElement.textContent = `${displayName} (${qualityPercent}%)`;
-            trackingStatusElement.style.color = qualityPercent > 80 ? '#00ff88' : qualityPercent > 50 ? '#ffd23f' : '#ff6b35';
-          } else {
-            trackingStatusElement.textContent = displayName;
-            trackingStatusElement.style.color = '#ffffff';
-          }
+          const displayName = satellite.shortname || satellite.name.substring(0, 8).toUpperCase();
+          trackingStatusElement.textContent = displayName;
+          trackingStatusElement.style.color = '#00ff88'; // Always green when tracking
         } else {
           trackingStatusElement.textContent = 'UNKNOWN';
+          trackingStatusElement.style.color = '#ffffff';
         }
       } else {
         trackingStatusElement.textContent = 'FREE VIEW';

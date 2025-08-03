@@ -32,8 +32,8 @@ export class SmoothTracker {
   
   // Ultra-high frequency prediction cache
   private predictionCache = new Map<number, PredictivePosition>();
-  private readonly CACHE_SIZE = 1000; // Store 1000 predictions (16+ seconds at 60fps)
-  private readonly UPDATE_FREQUENCY = 16; // 60fps - update every 16ms
+  private readonly CACHE_SIZE = 2000; // Store 2000 predictions (16+ seconds at 120fps)
+  private readonly UPDATE_FREQUENCY = 33; // 30fps - update every 33ms for smooth tracking
   private readonly PREDICTION_HORIZON = 5000; // Predict 5 seconds ahead
 
   constructor(onPositionUpdate?: (position: PredictivePosition) => void) {
@@ -216,7 +216,7 @@ export class SmoothTracker {
   private startHighFrequencyUpdates(): void {
     if (!this.trackingState) return;
     
-    // Update every 16ms (60fps) for video-smooth tracking
+    // Update every 8ms (120fps) for ultra-smooth tracking
     this.highFrequencyTimer = window.setInterval(() => {
       if (!this.trackingState) return;
       
@@ -224,6 +224,14 @@ export class SmoothTracker {
       const position = this.getPredictedPosition(now);
       
       if (position && this.onPositionUpdate) {
+        // Debug logging
+        if (Math.random() < 0.005) { // 0.5% chance to avoid spam
+          console.log('🎯 Smooth tracker update:', {
+            satellite: this.trackingState.satelliteId,
+            position: [position.longitude.toFixed(6), position.latitude.toFixed(6)],
+            confidence: position.confidence.toFixed(3)
+          });
+        }
         this.onPositionUpdate(position);
       }
       
@@ -234,7 +242,7 @@ export class SmoothTracker {
       
     }, this.UPDATE_FREQUENCY);
     
-    console.log(`🎬 Started 60fps tracking updates (every ${this.UPDATE_FREQUENCY}ms)`);
+    console.log(`🎬 Started 30fps tracking updates (every ${this.UPDATE_FREQUENCY}ms)`);
   }
 
   // Refresh tracking data with new exact calculation

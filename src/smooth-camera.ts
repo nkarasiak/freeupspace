@@ -25,9 +25,9 @@ export class SmoothCamera {
   private targetPosition: PredictivePosition | null = null;
   
   // Smoothing parameters for video-like tracking
-  private readonly SMOOTHING_FACTOR = 0.15; // Higher = more responsive, lower = smoother
-  private readonly MIN_MOVEMENT_THRESHOLD = 0.0001; // Minimum movement to trigger update
-  private readonly PREDICTION_LEAD_TIME = 50; // Predict 50ms ahead for smoother tracking
+  private readonly SMOOTHING_FACTOR = 0.08; // Lower = smoother (was 0.15)
+  private readonly MIN_MOVEMENT_THRESHOLD = 0.00001; // Lower threshold for more updates
+  private readonly PREDICTION_LEAD_TIME = 100; // Predict 100ms ahead for smoother tracking
   
   // Adaptive smoothing based on satellite speed
   private adaptiveSmoothingEnabled = true;
@@ -99,6 +99,15 @@ export class SmoothCamera {
 
     // Calculate distance for movement threshold
     const distance = this.calculateDistance(currentState.center, targetCenter);
+    
+    // Debug logging
+    if (Math.random() < 0.01) { // 1% chance to avoid spam
+      console.log('🎬 Smooth camera update:', {
+        current: currentState.center,
+        target: targetCenter,
+        distance: distance.toFixed(6)
+      });
+    }
     
     // Skip update if movement is too small
     if (distance < this.MIN_MOVEMENT_THRESHOLD) {

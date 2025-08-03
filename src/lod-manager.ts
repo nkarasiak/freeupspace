@@ -86,7 +86,10 @@ export class LODManager {
     // Final cap on satellite count
     const finalResult = result.slice(0, maxSatellites);
 
-    console.log(`🎯 LOD: ${satellites.length} → ${finalResult.length} satellites (zoom: ${zoom.toFixed(1)}, skip: ${skipFactor})`);
+    // Only log occasionally to avoid spam
+    if (Math.random() < 0.005) { // 0.5% chance (even less frequent)
+      console.log(`🎯 LOD: ${satellites.length} → ${finalResult.length} satellites (zoom: ${zoom.toFixed(1)}, skip: ${skipFactor})`);
+    }
     
     return finalResult;
   }
@@ -179,7 +182,7 @@ export class LODManager {
       switch (lodLevel) {
         case 'ultra-low':
         case 'low': return false;
-        case 'medium': return zoom >= 5; // Only at zoom 5+
+        case 'medium': return zoom >= 4; // Only at zoom 4+
         case 'high': return zoom >= 4;   // At zoom 4+
         case 'ultra-high': return true;  // Always show
       }
