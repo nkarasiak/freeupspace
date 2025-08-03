@@ -101,6 +101,7 @@ export class DeckSatelliteTracker {
   
   // Dynamic satellite data fetcher
   private satelliteDataFetcher = new SatelliteDataFetcher();
+  
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -114,6 +115,7 @@ export class DeckSatelliteTracker {
     this.initializeDeck();
     this.initializeWorker();
   }
+
 
   setOnTrackingChangeCallback(callback: () => void) {
     this.onTrackingChangeCallback = callback;
@@ -442,70 +444,74 @@ export class DeckSatelliteTracker {
   }
 
   private createDotIcon(satelliteId: string) {
-    // Create animated movie-style tracking dot with anti-aliasing
-    const dotSize = 24; // Slightly larger for better anti-aliasing
+    // Create high-quality static tracking dot (CSS will handle blinking)
+    const dotSize = 32; // Larger for better quality
     const canvas = document.createElement('canvas');
-    canvas.width = dotSize;
-    canvas.height = dotSize;
+    
+    // Use device pixel ratio for crisp rendering on high-DPI displays
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = dotSize * dpr;
+    canvas.height = dotSize * dpr;
+    canvas.style.width = dotSize + 'px';
+    canvas.style.height = dotSize + 'px';
     
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      // Enable anti-aliasing for smooth edges
+      // Scale context for high-DPI rendering
+      ctx.scale(dpr, dpr);
+      
+      // Enable maximum anti-aliasing
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       
       const centerX = dotSize / 2;
       const centerY = dotSize / 2;
       
-      // Create animated pulsing effect using time-based opacity
-      const animateFrame = () => {
-        ctx.clearRect(0, 0, dotSize, dotSize);
-        
-        // Calculate pulsing opacity (slow, subtle pulse like in movies)
-        const time = Date.now() * 0.002; // Slow pulse frequency
-        const pulseOpacity = 0.4 + 0.3 * Math.sin(time); // Pulse between 0.4 and 0.7
-        
-        // Outer glow (larger, soft)
-        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 10);
-        gradient.addColorStop(0, `rgba(0, 255, 136, ${pulseOpacity})`);
-        gradient.addColorStop(0.5, `rgba(0, 255, 136, ${pulseOpacity * 0.3})`);
-        gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
-        
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
-        ctx.fillStyle = gradient;
-        ctx.fill();
-        
-        // Middle ring
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
-        ctx.strokeStyle = `rgba(0, 255, 136, ${0.8 + 0.2 * Math.sin(time)})`;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        
-        // Inner bright core (always bright)
-        const coreGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 4);
-        coreGradient.addColorStop(0, '#ffffff');
-        coreGradient.addColorStop(0.4, '#00ff88');
-        coreGradient.addColorStop(1, '#00cc66');
-        
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
-        ctx.fillStyle = coreGradient;
-        ctx.fill();
-        
-        // Center bright point
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, 1.5, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
-        
-        // Continue animation
-        requestAnimationFrame(animateFrame);
-      };
+      // Clear canvas with transparent background
+      ctx.clearRect(0, 0, dotSize, dotSize);
       
-      // Start the animation
-      animateFrame();
+      // Outer soft glow
+      const outerGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 12);
+      outerGradient.addColorStop(0, 'rgba(0, 255, 136, 0.6)');
+      outerGradient.addColorStop(0.3, 'rgba(0, 255, 136, 0.3)');
+      outerGradient.addColorStop(0.7, 'rgba(0, 255, 136, 0.1)');
+      outerGradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+      
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 12, 0, 2 * Math.PI);
+      ctx.fillStyle = outerGradient;
+      ctx.fill();
+      
+      // Middle ring with subtle glow
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 7, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(0, 255, 136, 0.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      // Inner core with gradient
+      const coreGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 5);
+      coreGradient.addColorStop(0, '#ffffff');
+      coreGradient.addColorStop(0.3, '#00ff88');
+      coreGradient.addColorStop(0.7, '#00cc66');
+      coreGradient.addColorStop(1, '#009944');
+      
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = coreGradient;
+      ctx.fill();
+      
+      // Bright center point
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 2, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      
+      // Very bright center pixel
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 0.8, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
       
       // Store the dot icon
       const ICON_MAPPING = {
@@ -1013,12 +1019,47 @@ export class DeckSatelliteTracker {
       this.smoothTracker.stopTracking();
       this.smoothCamera.stopSmoothTracking();
       
-      // Use map.flyTo directly instead of smooth camera to ensure zoom works
-      console.log('📹 Flying to satellite with map.flyTo - zoom:', targetZoom, 'pitch: 60');
+      // Calculate camera position to focus on satellite's 3D position at altitude
+      const satelliteAltitudeKm = satellite.altitude;
+      const satelliteLat = satellite.position.lat;
+      const satelliteLng = satellite.position.lng;
+      
+      // Calculate offset to position camera so satellite appears centered
+      // This simulates looking "at" the satellite rather than "up at" it
+      const pitchRadians = 60 * Math.PI / 180; // 60 degrees in radians
+      
+      // Calculate how far back the camera needs to be to center the satellite
+      // Using trigonometry: distance = altitude / tan(pitch)
+      const horizontalDistanceKm = satelliteAltitudeKm / Math.tan(pitchRadians);
+      
+      // Convert distance to degrees (approximate)
+      const latOffsetDegrees = horizontalDistanceKm / 111; // ~111 km per degree latitude
+      
+      // Position camera south of satellite (looking north up at it)
+      const cameraLat = satelliteLat - latOffsetDegrees;
+      const cameraLng = satelliteLng; // Same longitude
+      
+      // Calculate appropriate zoom for this altitude
+      let adjustedZoom;
+      if (satelliteAltitudeKm > 700) {
+        adjustedZoom = 3.5; // Fixed zoom for ultra-high satellites
+      } else if (satelliteAltitudeKm > 600) {
+        adjustedZoom = 4.0; // Fixed zoom for very high satellites like YAM-10
+      } else if (satelliteAltitudeKm > 500) {
+        adjustedZoom = 4.5; // Fixed zoom for high satellites
+      } else if (satelliteAltitudeKm > 400) {
+        adjustedZoom = 5.0; // Fixed zoom for medium satellites
+      } else {
+        adjustedZoom = 5.5; // Fixed zoom for lower satellites
+      }
+      
+      console.log(`📹 Positioning camera to view satellite at ${satelliteAltitudeKm}km altitude`);
+      console.log(`📍 Camera: [${cameraLat.toFixed(4)}, ${cameraLng.toFixed(4)}] looking at satellite [${satelliteLat.toFixed(4)}, ${satelliteLng.toFixed(4)}]`);
+      
       this.map.flyTo({
-        center: [satellite.position.lng, satellite.position.lat],
-        zoom: targetZoom,
-        pitch: 60,
+        center: [cameraLng, cameraLat],
+        zoom: adjustedZoom,
+        pitch: 60, // Look up at satellite
         duration: 2000,
         essential: true
       });
@@ -1062,10 +1103,40 @@ export class DeckSatelliteTracker {
       this.smoothTracker.stopTracking();
       this.smoothCamera.stopSmoothTracking();
       
+      // Calculate camera position to focus on satellite's 3D position at altitude
+      const satelliteAltitudeKm = satellite.altitude;
+      const satelliteLat = satellite.position.lat;
+      const satelliteLng = satellite.position.lng;
+      
+      // Calculate offset to position camera so satellite appears centered
+      const pitchRadians = targetPitch * Math.PI / 180;
+      const horizontalDistanceKm = satelliteAltitudeKm / Math.tan(pitchRadians);
+      const latOffsetDegrees = horizontalDistanceKm / 111;
+      
+      // Position camera to look at satellite
+      const cameraLat = satelliteLat - latOffsetDegrees;
+      const cameraLng = satelliteLng;
+      
+      // Calculate appropriate zoom for this altitude
+      let adjustedZoom;
+      if (satelliteAltitudeKm > 700) {
+        adjustedZoom = 3.5;
+      } else if (satelliteAltitudeKm > 600) {
+        adjustedZoom = 4.0;
+      } else if (satelliteAltitudeKm > 500) {
+        adjustedZoom = 4.5;
+      } else if (satelliteAltitudeKm > 400) {
+        adjustedZoom = 5.0;
+      } else {
+        adjustedZoom = 5.5;
+      }
+      
+      console.log(`📹 Animation: Positioning camera to view satellite at ${satelliteAltitudeKm}km altitude`);
+      
       // Use map.flyTo directly for consistent behavior
       this.map.flyTo({
-        center: [satellite.position.lng, satellite.position.lat],
-        zoom: targetZoom,
+        center: [cameraLng, cameraLat],
+        zoom: adjustedZoom,
         pitch: targetPitch,
         bearing: targetBearing,
         duration: 3000,
