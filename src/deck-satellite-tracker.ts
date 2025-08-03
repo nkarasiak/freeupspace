@@ -3,6 +3,8 @@ import { ScatterplotLayer, IconLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap, LngLat } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
 import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
+import { PerformanceManager } from './performance-manager';
+import { LODManager, ViewportInfo, SatelliteForLOD } from './lod-manager';
 
 export interface SatelliteData {
   id: string;
@@ -64,13 +66,15 @@ export class DeckSatelliteTracker {
   private layerUpdateThrottle = 0;
   private readonly LAYER_UPDATE_THROTTLE = 33; // ~30fps layer updates for smooth panning
   
-  // Performance monitoring
-  private frameCount = 0;
-  private lastFPSUpdate = 0;
+  // Performance optimizers
+  private performanceManager = new PerformanceManager();
+  private lodManager = new LODManager();
+  private satelliteWorker: Worker | null = null;
 
   constructor(map: MapLibreMap) {
     this.map = map;
     this.initializeDeck();
+    this.initializeWorker();
   }
 
   setOnTrackingChangeCallback(callback: () => void) {
@@ -203,6 +207,118 @@ export class DeckSatelliteTracker {
     }, 100);
   }
 
+  private initializeWorker() {
+    try {
+      // Create satellite calculation worker
+      const workerBlob = new Blob([`
+        // Web Worker for satellite position calculations
+        import * as satellite from 'satellite.js';
+
+        const satelliteRecords = new Map();
+        let calculationQueue = [];
+        let isProcessing = false;
+
+        self.onmessage = function(e) {
+          const { type, data } = e.data;
+
+          switch (type) {
+            case 'CALCULATE_POSITIONS':
+              calculationQueue.push(...data);
+              processBatch();
+              break;
+            
+            case 'CALCULATE_SINGLE':
+              const result = calculateSatellitePosition(data);
+              self.postMessage({ type: 'POSITION_RESULT', data: result });
+              break;
+          }
+        };
+
+        async function processBatch() {
+          if (isProcessing || calculationQueue.length === 0) return;
+          
+          isProcessing = true;
+          const batch = calculationQueue.splice(0, 100);
+          const results = [];
+
+          for (const request of batch) {
+            const result = calculateSatellitePosition(request);
+            if (result) {
+              results.push(result);
+            }
+          }
+
+          self.postMessage({ type: 'BATCH_RESULTS', data: results });
+          isProcessing = false;
+
+          if (calculationQueue.length > 0) {
+            setTimeout(processBatch, 0);
+          }
+        }
+
+        function calculateSatellitePosition(request) {
+          try {
+            const { id, tle1, tle2, timestamp } = request;
+            
+            const cacheKey = \`\${tle1}-\${tle2}\`;
+            let satrec = satelliteRecords.get(cacheKey);
+            if (!satrec) {
+              satrec = satellite.twoline2satrec(tle1, tle2);
+              satelliteRecords.set(cacheKey, satrec);
+            }
+            
+            const currentTime = new Date(timestamp);
+            const positionAndVelocity = satellite.propagate(satrec, currentTime);
+            
+            if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
+              const gmst = satellite.gstime(currentTime);
+              const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+              
+              const velocity = positionAndVelocity.velocity && typeof positionAndVelocity.velocity !== 'boolean' ? 
+                Math.sqrt(
+                  Math.pow(positionAndVelocity.velocity.x, 2) + 
+                  Math.pow(positionAndVelocity.velocity.y, 2) + 
+                  Math.pow(positionAndVelocity.velocity.z, 2)
+                ) : 0;
+              
+              return {
+                id,
+                longitude: satellite.degreesLong(positionGd.longitude),
+                latitude: satellite.degreesLat(positionGd.latitude),
+                altitude: positionGd.height,
+                velocity,
+                timestamp
+              };
+            }
+          } catch (error) {
+            console.error(\`Error calculating position for satellite \${request.id}:\`, error);
+          }
+          
+          return null;
+        }
+      `], { type: 'application/javascript' });
+
+      this.satelliteWorker = new Worker(URL.createObjectURL(workerBlob), { type: 'module' });
+      
+      this.satelliteWorker.onmessage = (e) => {
+        const { type, data } = e.data;
+        
+        switch (type) {
+          case 'BATCH_RESULTS':
+            this.handleWorkerBatchResults(data);
+            break;
+          case 'POSITION_RESULT':
+            this.handleWorkerSingleResult(data);
+            break;
+        }
+      };
+
+      console.log('🔧 Satellite calculation worker initialized');
+    } catch (error) {
+      console.warn('⚠️ Failed to initialize worker, falling back to main thread:', error);
+    }
+  }
+
   private loadSampleSatellites() {
     SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
       try {
@@ -329,90 +445,60 @@ export class DeckSatelliteTracker {
     }
   }
 
-  private getSizeForZoom(zoom: number, baseSize: number): number {
-    // Circle sizing for satellites without images
-    if (zoom <= 5) {
-      // Small dot until zoom 5
-      return 2; // Very small dot
-    } else if (zoom === 6) {
-      // Zoom 6: width * zoom * 2
-      return baseSize * zoom * 2;
-    } else if (zoom >= 8) {
-      // Zoom 8+: width * zoom * 4
-      return baseSize * zoom * 4;
-    } else {
-      // Zoom 7: interpolate between zoom 6 and 8 formulas
-      const zoom6Size = baseSize * 6 * 2; // 12 * baseSize
-      const zoom8Size = baseSize * 8 * 4; // 32 * baseSize
-      const progress = (zoom - 6) / (8 - 6); // 0 to 1 for zoom 6 to 8
-      return zoom6Size + (progress * (zoom8Size - zoom6Size));
-    }
-  }
 
   private generateSatellitePoints(): SatellitePointData[] {
     const zoom = this.map.getZoom();
     const bounds = this.map.getBounds();
     
-    // Level of Detail (LOD) rendering for performance - More aggressive
-    const getLODSkip = (zoom: number): number => {
-      if (zoom <= 1) return 50; // Show every 50th satellite at very low zoom
-      if (zoom <= 2) return 25; // Show every 25th satellite at low zoom
-      if (zoom <= 3) return 10; // Show every 10th satellite at medium zoom
-      if (zoom <= 4) return 5;  // Show every 5th satellite
-      if (zoom <= 5) return 3;  // Show every 3rd satellite
-      if (zoom <= 6) return 2;  // Show every 2nd satellite
-      return 1; // Show all satellites only at very high zoom
-    };
+    // Use performance manager and LOD manager for adaptive rendering
+    const maxSatellites = this.performanceManager.getMaxSatellites();
+    const performanceSkip = this.performanceManager.getLODSkip(zoom);
     
-    const lodSkip = getLODSkip(zoom);
+    // Convert satellites to LOD format
+    const satellitesForLOD: SatelliteForLOD[] = Array.from(this.satellites.values()).map(sat => ({
+      id: sat.id,
+      position: sat.position,
+      type: sat.type,
+      dimensions: sat.dimensions,
+      isFollowed: this.followingSatellite === sat.id,
+      hasImage: SATELLITE_CONFIGS_WITH_STARLINK.find(s => s.id === sat.id)?.image !== undefined
+    }));
     
-    // Exclude satellites that have custom images from circle rendering
-    const satellitesWithImages = SATELLITE_CONFIGS_WITH_STARLINK.filter(sat => sat.image).map(sat => sat.id);
+    // Apply LOD filtering
+    const viewport: ViewportInfo = { zoom, bounds };
+    const filteredSatellites = this.lodManager.filterSatellitesForLOD(
+      satellitesForLOD,
+      viewport,
+      performanceSkip,
+      maxSatellites
+    );
     
-    const points = Array.from(this.satellites.values())
-      .filter((sat, index) => {
-        // Always show followed satellite and ISS
-        if (this.followingSatellite === sat.id || sat.id === 'iss') return false; // ISS handled separately
-        
-        // LOD filtering: skip satellites based on zoom level
-        if (sat.type === 'communication' && lodSkip > 1 && index % lodSkip !== 0) {
-          return false;
-        }
-        
-        // Viewport culling: only show satellites in or near the current view
-        if (zoom < 4) {
-          const margin = zoom < 2 ? 60 : 30; // Larger margin at very low zoom
-          const expandedBounds = {
-            getWest: () => bounds.getWest() - margin,
-            getEast: () => bounds.getEast() + margin,
-            getSouth: () => bounds.getSouth() - margin/2,
-            getNorth: () => bounds.getNorth() + margin/2
-          };
-          if (!this.isInBounds(sat.position, expandedBounds)) {
-            return false;
-          }
-        }
-        
-        // Image satellite filtering
-        if (satellitesWithImages.includes(sat.id)) {
-          return zoom < 4; // Show as circles only at low zoom
-        }
-        
-        return true; // Show non-image satellites
-      })
-      .map(sat => ({
-        position: [sat.position.lng, sat.position.lat, 0] as [number, number, number],
-        id: sat.id,
-        name: sat.name,
-        type: sat.type,
-        altitude: sat.altitude,
-        velocity: sat.velocity,
-        length: sat.dimensions.length,
-        color: this.getColorForType(sat.type),
-        size: this.getSizeForZoom(zoom, sat.dimensions.length * 2)
-      }));
+    // Filter out satellites that should show as icons instead of circles
+    const pointSatellites = filteredSatellites.filter(lodSat => {
+      return !this.lodManager.shouldShowIcon(lodSat, zoom) || lodSat.id === 'iss'; // ISS handled separately
+    });
     
-    console.log(`🎯 Rendering ${points.length} satellites (LOD skip: ${lodSkip}, zoom: ${zoom.toFixed(1)})`);
+    const points = pointSatellites
+      .map(lodSat => {
+        const sat = this.satellites.get(lodSat.id)!;
+        const size = this.lodManager.getCircleSize(lodSat, zoom, 2); // Use small base size for circles
+        return {
+          position: [sat.position.lng, sat.position.lat, 0] as [number, number, number],
+          id: sat.id,
+          name: sat.name,
+          type: sat.type,
+          altitude: sat.altitude,
+          velocity: sat.velocity,
+          length: sat.dimensions.length,
+          color: this.getColorForType(sat.type),
+          size
+        };
+      });
+    
+    // Update performance metrics
+    this.performanceManager.setSatelliteCount(points.length);
+    
+    console.log(`🎯 Rendering ${points.length} satellites (quality: ${this.performanceManager.getCurrentQuality()}, zoom: ${zoom.toFixed(1)})`);
     return points;
   }
 
@@ -820,70 +906,130 @@ export class DeckSatelliteTracker {
     }, 3000);
   }
 
+  private handleWorkerBatchResults(results: any[]) {
+    for (const result of results) {
+      const satellite = this.satellites.get(result.id);
+      if (satellite) {
+        satellite.position = new LngLat(result.longitude, result.latitude);
+        satellite.altitude = result.altitude;
+        satellite.velocity = result.velocity;
+      }
+    }
+    this.updateLayers();
+  }
+
+  private handleWorkerSingleResult(result: any) {
+    const satellite = this.satellites.get(result.id);
+    if (satellite) {
+      satellite.position = new LngLat(result.longitude, result.latitude);
+      satellite.altitude = result.altitude;
+      satellite.velocity = result.velocity;
+    }
+  }
+
+  private processSatelliteUpdates(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
+    if (!this.satelliteWorker) {
+      // Fallback to main thread calculations
+      this.processSatelliteUpdatesMainThread(bounds, zoom, now, lastFullUpdate, FULL_UPDATE_INTERVAL, UPDATE_INTERVAL);
+      return;
+    }
+
+    const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
+    const updateRequests: any[] = [];
+    
+    let satelliteIndex = 0;
+    for (const [id, sat] of this.satellites) {
+      const shouldUpdate = this.followingSatellite === id || 
+                          isFullUpdate ||
+                          (zoom > 3 && this.isInBounds(sat.position, bounds));
+      
+      // For full updates, only update a subset each frame to spread load
+      if (isFullUpdate && this.followingSatellite !== id) {
+        const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 30; // Spread over 30 frames
+        if (satelliteIndex % 30 !== frameOffset) {
+          satelliteIndex++;
+          continue;
+        }
+      }
+      
+      if (shouldUpdate) {
+        updateRequests.push({
+          id: sat.id,
+          tle1: sat.tle1,
+          tle2: sat.tle2,
+          timestamp: now
+        });
+      }
+      satelliteIndex++;
+    }
+
+    if (updateRequests.length > 0) {
+      this.satelliteWorker.postMessage({
+        type: 'CALCULATE_POSITIONS',
+        data: updateRequests
+      });
+    }
+  }
+
+  private processSatelliteUpdatesMainThread(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
+    // Fallback method using main thread
+    let updatedCount = 0;
+    let satelliteIndex = 0;
+    const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
+    
+    for (const [id, sat] of this.satellites) {
+      const shouldUpdate = this.followingSatellite === id || 
+                          isFullUpdate ||
+                          (zoom > 3 && this.isInBounds(sat.position, bounds));
+      
+      if (isFullUpdate && this.followingSatellite !== id) {
+        const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 30;
+        if (satelliteIndex % 30 !== frameOffset) {
+          satelliteIndex++;
+          continue;
+        }
+      }
+      
+      if (shouldUpdate) {
+        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+        sat.position = new LngLat(position.longitude, position.latitude);
+        sat.altitude = position.altitude;
+        sat.velocity = position.velocity;
+        updatedCount++;
+      }
+      satelliteIndex++;
+    }
+    
+    this.updateLayers();
+    console.log(`🛰️ Updated ${updatedCount} satellites (main thread fallback)`);
+  }
+
   private startTracking() {
     let lastUpdate = 0;
     let lastFullUpdate = 0;
     
-    // Dynamic update intervals based on zoom level for performance
-    const getUpdateInterval = (): number => {
-      const zoom = this.map.getZoom();
-      if (zoom >= 4 && zoom <= 5) {
-        return 400; // Slower updates during zoom 4-5 transition (2.5fps)
-      } else if (zoom >= 6) {
-        return 150; // Faster updates at high zoom (6.7fps)
-      }
-      return 200; // Normal updates (5fps)
-    };
-    
-    const FULL_UPDATE_INTERVAL = 2000; // Reduced to 0.5fps for background updates
+    const FULL_UPDATE_INTERVAL = 3000; // Reduced to 0.33fps for background updates
     
     const updatePositions = () => {
       const now = Date.now();
       
+      // Update performance monitoring
+      this.performanceManager.updateFrameRate();
+      
       // Skip position updates if paused, but continue the animation loop
-      const UPDATE_INTERVAL = getUpdateInterval();
+      const UPDATE_INTERVAL = this.performanceManager.getUpdateInterval();
       if (!this.isPaused && now - lastUpdate >= UPDATE_INTERVAL) {
         // Get current map view bounds for performance optimization
         const bounds = this.map.getBounds();
         const zoom = this.map.getZoom();
         
-        // Only update satellites that are likely visible or being followed
-        let updatedCount = 0;
-        let satelliteIndex = 0;
-        for (const [id, sat] of this.satellites) {
-          // All satellites get their positions updated normally
-          
-          // Staggered updates: spread computation over multiple frames
-          const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
-          const shouldUpdate = this.followingSatellite === id || 
-                             isFullUpdate ||
-                             (zoom > 3 && this.isInBounds(sat.position, bounds));
-          
-          // For full updates, only update a subset each frame to spread load
-          if (isFullUpdate && this.followingSatellite !== id) {
-            const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 20; // Spread over 20 frames
-            if (satelliteIndex % 20 !== frameOffset) {
-              satelliteIndex++;
-              continue;
-            }
-          }
-          
-          if (shouldUpdate) {
-            const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
-            sat.position = new LngLat(position.longitude, position.latitude);
-            sat.altitude = position.altitude;
-            sat.velocity = position.velocity;
-            updatedCount++;
-          }
-          satelliteIndex++;
-        }
+        // Use worker-based batch updating for performance
+        this.processSatelliteUpdates(bounds, zoom, now, lastFullUpdate, FULL_UPDATE_INTERVAL, UPDATE_INTERVAL);
 
         if (now - lastFullUpdate >= FULL_UPDATE_INTERVAL) {
           lastFullUpdate = now;
-          console.log(`🛰️ Updated ${updatedCount} satellites (full update)`);
         }
 
-        this.updateLayers();
         lastUpdate = now;
       }
       
@@ -892,14 +1038,7 @@ export class DeckSatelliteTracker {
         this.updateFollowing();
       }
       
-      // Performance monitoring
-      this.frameCount++;
-      if (now - this.lastFPSUpdate > 5000) { // Every 5 seconds
-        const fps = (this.frameCount * 1000) / (now - this.lastFPSUpdate);
-        console.log(`⚡ Performance: ${fps.toFixed(1)} FPS, ${this.satellites.size} satellites`);
-        this.frameCount = 0;
-        this.lastFPSUpdate = now;
-      }
+      // Performance monitoring handled by PerformanceManager
       
       this.animationId = requestAnimationFrame(updatePositions);
     };
@@ -1009,6 +1148,10 @@ export class DeckSatelliteTracker {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
+    }
+    if (this.satelliteWorker) {
+      this.satelliteWorker.terminate();
+      this.satelliteWorker = null;
     }
     if (this.deck) {
       this.deck.finalize();
