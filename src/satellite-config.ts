@@ -28,7 +28,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     image: 'static/images/ISS.png'
   },
   {
-    id: 'hubble',
+    id: 'hst-20580',
     name: 'Hubble Space Telescope',
     shortname: 'HUBBLE',
     type: 'scientific',
@@ -259,7 +259,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 
   // Sentinel Earth observation constellation
   {
-    id: 'sentinel-1a',
+    id: 'sentinel-1a-39634',
     name: 'Sentinel-1A',
     type: 'earth-observation',
     tle1: '1 39634U 14016A   25214.25123456  .00000234  00000-0  56789-4 0  9995',
@@ -269,7 +269,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 
   },
   {
-    id: 'sentinel-1b',
+    id: 'sentinel-1b-41456',
     name: 'Sentinel-1B',
     type: 'earth-observation',
     tle1: '1 41456U 16025A   25214.26234567  .00000267  00000-0  62345-4 0  9994',
@@ -279,7 +279,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 
   },
   {
-    id: 'sentinel-1c',
+    id: 'sentinel-1c-62261',
     name: 'Sentinel-1C',
     type: 'earth-observation',
     tle1: '1 59051U 24036A   25214.27345678  .00000198  00000-0  54321-4 0  9993',
@@ -288,7 +288,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 	image: 'static/images/esa_sentinel1.png'
   },
   {
-    id: 'sentinel-2a',
+    id: 'sentinel-2a-40697',
     name: 'Sentinel-2A',
     type: 'earth-observation',
     tle1: '1 40697U 15028A   25214.31234567  .00000456  00000-0  78901-4 0  9980',
@@ -297,7 +297,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 	image: 'static/images/esa_sentinel2.png'
   },
   {
-    id: 'sentinel-2b',
+    id: 'sentinel-2b-42063',
     name: 'Sentinel-2B',
     type: 'earth-observation',
     tle1: '1 42063U 17013A   25214.32345678  .00000523  00000-0  89012-4 0  9979',
@@ -307,7 +307,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 
   },
   {
-    id: 'sentinel-2c',
+    id: 'sentinel-2c-60989',
     name: 'Sentinel-2C',
     type: 'earth-observation',
     tle1: '1 59999U 24077A   25214.33456789  .00000467  00000-0  81234-4 0  9978',
@@ -317,7 +317,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 
   },
   {
-    id: 'sentinel-3a',
+    id: 'sentinel-3a-41335',
     name: 'Sentinel-3A',
     type: 'earth-observation',
     tle1: '1 41335U 16011A   25214.34567890  .00000123  00000-0  45678-4 0  9993',
@@ -326,7 +326,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 	image: 'static/images/esa_sentinel3.png'
   },
   {
-    id: 'sentinel-3b',
+    id: 'sentinel-3b-43437',
     name: 'Sentinel-3B',
     type: 'earth-observation',
     tle1: '1 43437U 18039A   25214.35678901  .00000156  00000-0  51234-4 0  9992',
@@ -335,7 +335,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 	image: 'static/images/esa_sentinel3.png'
   },
   {
-    id: 'sentinel-5p',
+    id: 'sentinel-5p-42969',
     name: 'Sentinel-5P (TROPOMI)',
     type: 'earth-observation',
     tle1: '1 42969U 17064A   25214.38901234  .00000345  00000-0  67890-4 0  9989',
@@ -345,7 +345,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
 
   },
   {
-    id: 'sentinel-6a',
+    id: 'sentinel-6-46984',
     name: 'Sentinel-6A (Michael Freilich)',
     type: 'earth-observation',
     tle1: '1 46984U 20087A   25214.39012345  .00000278  00000-0  61234-4 0  9988',
