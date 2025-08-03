@@ -704,8 +704,8 @@ export class DeckSatelliteTracker {
     } else {
       // Others: Aggressive scaling but with performance caps
       if (zoom <= 6) {
-        // Tracked satellite gets 6x multiplier, others get 2x multiplier
-        const multiplier = isTracked ? 6 : 2;
+        // Tracked satellite gets 10x multiplier, others get 2x multiplier
+        const multiplier = isTracked ? 10 : 2;
         size = Math.min(effectiveZoom * satelliteWidth * multiplier, 120); // Cap at 120px
       } else {
         size = Math.min(effectiveZoom * satelliteWidth * 3, 200); // Higher zoom gets bigger, cap at 200px
