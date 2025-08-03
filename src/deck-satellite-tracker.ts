@@ -3,6 +3,7 @@ import { ScatterplotLayer, IconLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap, LngLat } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
 import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
+import { SatelliteDataFetcher } from './satellite-data-fetcher';
 import { PerformanceManager } from './performance-manager';
 import { LODManager, ViewportInfo, SatelliteForLOD } from './lod-manager';
 import { OrbitalInterpolator, SatellitePosition } from './orbital-interpolator';
@@ -24,6 +25,7 @@ export interface SatelliteData {
     width: number;  // meters
     height: number; // meters
   };
+  image?: string; // Optional image URL for satellites with custom icons
 }
 
 export interface SatellitePointData {
@@ -93,6 +95,9 @@ export class DeckSatelliteTracker {
   
   // Cockpit visibility
   private isCockpitVisible = true;
+  
+  // Dynamic satellite data fetcher
+  private satelliteDataFetcher = new SatelliteDataFetcher();
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -225,8 +230,8 @@ export class DeckSatelliteTracker {
     setTimeout(syncView, 100);
   }
 
-  initialize() {
-    this.loadSampleSatellites();
+  async initialize() {
+    await this.loadSampleSatellites();
     this.loadSatelliteIcons();
     this.updateLayers();
     // Start background satellite position updates (not camera tracking)
@@ -242,147 +247,154 @@ export class DeckSatelliteTracker {
   }
 
   private initializeWorker() {
+    // Disable worker for now due to module loading issues with importScripts
+    // All calculations will use main thread fallback which works reliably
+    console.log('📡 Using main thread satellite calculations (worker disabled for compatibility)');
+    this.satelliteWorker = null;
+  }
+
+  private async loadSampleSatellites() {
+    console.log('🚀 Loading satellites from external sources...');
+    
     try {
-      // Create satellite calculation worker - using importScripts for browser compatibility
-      const workerBlob = new Blob([`
-        // Web Worker for satellite position calculations
-        importScripts('https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js');
-
-        const satelliteRecords = new Map();
-        let calculationQueue = [];
-        let isProcessing = false;
-
-        self.onmessage = function(e) {
-          const { type, data } = e.data;
-
-          switch (type) {
-            case 'CALCULATE_POSITIONS':
-              calculationQueue.push(...data);
-              processBatch();
-              break;
-            
-            case 'CALCULATE_SINGLE':
-              const result = calculateSatellitePosition(data);
-              self.postMessage({ type: 'POSITION_RESULT', data: result });
-              break;
-          }
-        };
-
-        async function processBatch() {
-          if (isProcessing || calculationQueue.length === 0) return;
-          
-          isProcessing = true;
-          const batch = calculationQueue.splice(0, 100);
-          const results = [];
-
-          for (const request of batch) {
-            const result = calculateSatellitePosition(request);
-            if (result) {
-              results.push(result);
-            }
-          }
-
-          self.postMessage({ type: 'BATCH_RESULTS', data: results });
-          isProcessing = false;
-
-          if (calculationQueue.length > 0) {
-            setTimeout(processBatch, 0);
-          }
-        }
-
-        function calculateSatellitePosition(request) {
-          try {
-            const { id, tle1, tle2, timestamp } = request;
-            
-            const cacheKey = \`\${tle1}-\${tle2}\`;
-            let satrec = satelliteRecords.get(cacheKey);
-            if (!satrec) {
-              satrec = self.satellite.twoline2satrec(tle1, tle2);
-              satelliteRecords.set(cacheKey, satrec);
-            }
-            
-            const currentTime = new Date(timestamp);
-            const positionAndVelocity = self.satellite.propagate(satrec, currentTime);
-            
-            if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
-              const gmst = self.satellite.gstime(currentTime);
-              const positionGd = self.satellite.eciToGeodetic(positionAndVelocity.position, gmst);
-              
-              const velocity = positionAndVelocity.velocity && typeof positionAndVelocity.velocity !== 'boolean' ? 
-                Math.sqrt(
-                  Math.pow(positionAndVelocity.velocity.x, 2) + 
-                  Math.pow(positionAndVelocity.velocity.y, 2) + 
-                  Math.pow(positionAndVelocity.velocity.z, 2)
-                ) : 0;
-              
-              return {
-                id,
-                longitude: self.satellite.degreesLong(positionGd.longitude),
-                latitude: self.satellite.degreesLat(positionGd.latitude),
-                altitude: positionGd.height,
-                velocity,
-                timestamp
-              };
-            }
-          } catch (error) {
-            console.error(\`Error calculating position for satellite \${request.id}:\`, error);
-          }
-          
-          return null;
-        }
-      `], { type: 'application/javascript' });
-
-      this.satelliteWorker = new Worker(URL.createObjectURL(workerBlob), { type: 'module' });
+      // Load satellites from multiple sources - using only VALID Celestrak group names
+      const satelliteGroups = [
+        'stations',       // ISS and other space stations
+        'science',        // Scientific satellites (Hubble, etc.)
+        'weather',        // Weather satellites
+        'noaa',           // NOAA weather satellites
+        'goes',           // GOES weather satellites
+        'resource',       // Earth observation/resource satellites (includes Sentinel)
+        'cubesat',        // CubeSats (includes YAM-10, etc.)
+        'planet',         // Planet Labs satellites
+        'spire',          // Spire Global satellites
+        'gps-ops',        // GPS operational satellites
+        'galileo',        // Galileo navigation
+        'beidou',         // BeiDou navigation
+        'glo-ops',        // GLONASS operational
+        'iridium-NEXT',   // Iridium NEXT constellation
+        'globalstar',     // Globalstar communication
+        'oneweb',         // OneWeb constellation
+        'starlink'        // Starlink satellites (will be largest group)
+      ];
       
-      this.satelliteWorker.onmessage = (e) => {
-        const { type, data } = e.data;
-        
-        switch (type) {
-          case 'BATCH_RESULTS':
-            this.handleWorkerBatchResults(data);
-            break;
-          case 'POSITION_RESULT':
-            this.handleWorkerSingleResult(data);
-            break;
+      let totalLoadedCount = 0;
+      
+      // Load each group completely - no artificial limits
+      for (const groupName of satelliteGroups) {
+        try {
+          console.log(`🛰️ Loading ALL ${groupName} satellites...`);
+          
+          const groupSatellites = await this.satelliteDataFetcher.fetchSatellites([groupName]);
+          let groupLoadedCount = 0;
+          
+          for (const sat of groupSatellites) {
+            try {
+              const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+              
+              if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+                console.warn(`⚠️ Invalid position for satellite ${sat.id}`);
+                continue;
+              }
+              
+              this.satellites.set(sat.id, {
+                ...sat,
+                position: new LngLat(position.longitude, position.latitude),
+                altitude: position.altitude,
+                velocity: position.velocity
+              });
+              
+              groupLoadedCount++;
+              totalLoadedCount++;
+              
+              // Performance check - warn if we're getting too many satellites
+              if (totalLoadedCount > 10000) {
+                console.warn(`⚠️ High satellite count: ${totalLoadedCount}. Consider performance optimizations.`);
+              }
+              
+            } catch (error) {
+              console.warn(`⚠️ Error loading satellite ${sat.id}:`, error);
+            }
+          }
+          
+          console.log(`✅ Loaded ${groupLoadedCount} ${groupName} satellites`);
+          
+        } catch (error) {
+          console.error(`❌ Failed to load ${groupName} satellites:`, error);
         }
-      };
-
-      console.log('🔧 Satellite calculation worker initialized');
+      }
+      
+      // Always load important static satellites (YAM-10, etc.) regardless of external sources
+      console.log('🔧 Loading static satellites with special configurations...');
+      let staticLoadedCount = 0;
+      
+      SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
+        // Only load satellites that aren't already loaded from external sources
+        if (!this.satellites.has(sat.id)) {
+          try {
+            const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+            
+            if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+              console.warn(`⚠️ Invalid position for static satellite ${sat.id}`);
+              return;
+            }
+            
+            this.satellites.set(sat.id, {
+              ...sat,
+              position: new LngLat(position.longitude, position.latitude),
+              altitude: position.altitude,
+              velocity: position.velocity
+            });
+            
+            staticLoadedCount++;
+            
+          } catch (error) {
+            console.warn(`⚠️ Error loading static satellite ${sat.id}:`, error);
+          }
+        }
+      });
+      
+      console.log(`✅ Loaded ${staticLoadedCount} additional static satellites`);
+      console.log(`✅ Total loaded: ${totalLoadedCount + staticLoadedCount} satellites from all sources`);
+      
     } catch (error) {
-      console.warn('⚠️ Failed to initialize worker, falling back to main thread:', error);
+      console.error('❌ Failed to load dynamic satellites, falling back to static config:', error);
+      
+      // Fallback to static configuration
+      SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
+        try {
+          const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+          
+          if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+            console.error(`❌ Invalid position for satellite ${sat.id}`);
+            return;
+          }
+          
+          this.satellites.set(sat.id, {
+            ...sat,
+            position: new LngLat(position.longitude, position.latitude),
+            altitude: position.altitude,
+            velocity: position.velocity
+          });
+          
+        } catch (error) {
+          console.error(`❌ Error loading satellite ${sat.id}:`, error);
+        }
+      });
+      
+      console.log(`✅ Fallback: Loaded ${this.satellites.size} satellites from static config`);
     }
   }
 
-  private loadSampleSatellites() {
-    SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
-      try {
-        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
-        
-        if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
-          console.error(`❌ Invalid position for satellite ${sat.id}`);
-          return;
-        }
-        
-        this.satellites.set(sat.id, {
-          ...sat,
-          position: new LngLat(position.longitude, position.latitude),
-          altitude: position.altitude,
-          velocity: position.velocity
-        });
-        
-      } catch (error) {
-        console.error(`❌ Error loading satellite ${sat.id}:`, error);
-      }
-    });
-      }
-
   private loadSatelliteIcons() {
-    // Find all satellites with images
-    const satellitesWithImages = SATELLITE_CONFIGS_WITH_STARLINK.filter(sat => sat.image);
+    // Find all satellites with images from loaded satellites
+    const satellitesWithImages = Array.from(this.satellites.values()).filter(sat => sat.image);
     
-    satellitesWithImages.forEach(satConfig => {
-      this.loadSatelliteIcon(satConfig.id, satConfig.image!);
+    satellitesWithImages.forEach(sat => {
+      this.loadSatelliteIcon(sat.id, sat.image!);
     });
+    
+    console.log(`🖼️ Loading icons for ${satellitesWithImages.length} satellites`);
   }
 
   private loadSatelliteIcon(satelliteId: string, imageUrl: string) {
@@ -507,7 +519,7 @@ export class DeckSatelliteTracker {
         type: sat.type,
         dimensions: sat.dimensions,
         isFollowed: this.followingSatellite === sat.id,
-        hasImage: SATELLITE_CONFIGS_WITH_STARLINK.find(s => s.id === sat.id)?.image !== undefined
+        hasImage: sat.image !== undefined
       }));
     
     // Apply LOD filtering
@@ -1049,76 +1061,13 @@ export class DeckSatelliteTracker {
     }, 3000);
   }
 
-  private handleWorkerBatchResults(results: any[]) {
-    for (const result of results) {
-      const satellite = this.satellites.get(result.id);
-      if (satellite) {
-        satellite.position = new LngLat(result.longitude, result.latitude);
-        satellite.altitude = result.altitude;
-        satellite.velocity = result.velocity;
-      }
-    }
-    this.updateLayers();
-  }
-
-  private handleWorkerSingleResult(result: any) {
-    const satellite = this.satellites.get(result.id);
-    if (satellite) {
-      satellite.position = new LngLat(result.longitude, result.latitude);
-      satellite.altitude = result.altitude;
-      satellite.velocity = result.velocity;
-    }
-  }
 
   private processSatelliteUpdates(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
     // Skip position updates for tracked satellite - smooth tracking handles it
     // Only update other satellites for rendering
     
-    if (!this.satelliteWorker) {
-      // Fallback to main thread calculations
-      this.processSatelliteUpdatesMainThread(bounds, zoom, now, lastFullUpdate, FULL_UPDATE_INTERVAL, UPDATE_INTERVAL);
-      return;
-    }
-
-    const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
-    const updateRequests: any[] = [];
-    
-    let satelliteIndex = 0;
-    for (const [id, sat] of this.satellites) {
-      // Skip followed satellite since we updated it above
-      const shouldUpdate = (this.followingSatellite !== id) && (
-                          isFullUpdate ||
-                          (zoom > 3 && this.isInBounds(sat.position, bounds)));
-      
-      // For full updates, only update a subset each frame to spread load
-      if (isFullUpdate && this.followingSatellite !== id) {
-        const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 30; // Spread over 30 frames
-        if (satelliteIndex % 30 !== frameOffset) {
-          satelliteIndex++;
-          continue;
-        }
-      }
-      
-      if (shouldUpdate) {
-        updateRequests.push({
-          id: sat.id,
-          tle1: sat.tle1,
-          tle2: sat.tle2,
-          timestamp: now
-        });
-      }
-      satelliteIndex++;
-    }
-
-    if (updateRequests.length > 0) {
-      this.satelliteWorker.postMessage({
-        type: 'CALCULATE_POSITIONS',
-        data: updateRequests
-      });
-    }
-    
-    // Update layers after processing (throttled)
-    this.updateLayers();
+    // Use main thread calculations (worker disabled)
+    this.processSatelliteUpdatesMainThread(bounds, zoom, now, lastFullUpdate, FULL_UPDATE_INTERVAL, UPDATE_INTERVAL);
   }
 
   private processSatelliteUpdatesMainThread(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {

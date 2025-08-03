@@ -253,8 +253,8 @@ class SatelliteTracker3D {
   private startTracking() {
     this.map.on('load', () => {
       // Wait a bit for the basemap to be added, then initialize satellites
-      setTimeout(() => {
-        this.satelliteTracker.initialize();
+      setTimeout(async () => {
+        await this.satelliteTracker.initialize();
         
         // Restore satellite tracking from URL if specified, otherwise default to ISS
         const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss';
