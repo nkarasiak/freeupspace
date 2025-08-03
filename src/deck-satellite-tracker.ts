@@ -869,7 +869,8 @@ export class DeckSatelliteTracker {
       // Fly to satellite with smooth camera
       this.smoothCamera.flyToTarget({
         center: [satellite.position.lng, satellite.position.lat],
-        zoom: targetZoom
+        zoom: targetZoom,
+        pitch: 60 // Set pitch to 60 degrees when tracking a satellite
       }, 2000).then(() => {
         // Camera animation complete, begin smooth tracking
         console.log('🎬 Camera positioned, ultra-smooth tracking active');
