@@ -769,10 +769,13 @@ export class DeckSatelliteTracker {
         }
         // Level-of-Detail (LOD) for images:
         // ISS: Always show as image (iconic satellite)
+        // Tracked satellite: Always show when being followed
         // Others: Progressive appearance based on zoom
         let shouldShowIcon = false;
         if (satelliteId === 'iss') {
           shouldShowIcon = true; // Always show ISS
+        } else if (this.followingSatellite === satelliteId) {
+          shouldShowIcon = true; // Always show tracked satellite
         } else if (zoom >= 4) {
           shouldShowIcon = true; // Show all satellite images at zoom 4+
         } else if (zoom >= 3) {
