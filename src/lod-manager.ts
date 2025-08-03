@@ -177,15 +177,13 @@ export class LODManager {
       return zoom >= 4;
     }
 
-    // Other satellites with images based on LOD level
-    if (satellite.hasImage) {
-      switch (lodLevel) {
-        case 'ultra-low':
-        case 'low': return false;
-        case 'medium': return zoom >= 4; // Only at zoom 4+
-        case 'high': return zoom >= 4;   // At zoom 4+
-        case 'ultra-high': return true;  // Always show
-      }
+    // All other satellites (now all have icons - either images or dots) based on LOD level
+    switch (lodLevel) {
+      case 'ultra-low':
+      case 'low': return false;
+      case 'medium': return zoom >= 4; // Only at zoom 4+
+      case 'high': return zoom >= 4;   // At zoom 4+
+      case 'ultra-high': return true;  // Always show
     }
 
     return false;

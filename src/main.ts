@@ -286,16 +286,17 @@ class SatelliteTracker3D {
             // Check if satellite exists before trying to follow it
             const satellites = this.satelliteTracker.getSatellites();
             if (satellites.has(satelliteToTrack)) {
-              // Use default zoom of 1.7 for ISS if not specified in URL
-              const zoomToUse = isDefaultISS ? 1.7 : this.initialZoom;
+              // Use zoom 5 and pitch 60 for default ISS view, otherwise use URL values
+              const zoomToUse = isDefaultISS ? 5 : this.initialZoom;
+              const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
               
-              console.log(`🎯 Tracking ${satelliteToTrack} with zoom: ${zoomToUse} (isDefaultISS: ${isDefaultISS})`);
+              console.log(`🎯 Tracking ${satelliteToTrack} with zoom: ${zoomToUse}, pitch: ${pitchToUse} (isDefaultISS: ${isDefaultISS})`);
               
               // Use zoom, pitch, and bearing from URL for smooth flyTo animation
               this.satelliteTracker.followSatelliteWithAnimation(
                 satelliteToTrack, 
                 zoomToUse,
-                this.urlState.getInitialPitch(),
+                pitchToUse,
                 this.urlState.getInitialBearing()
               );
             } else {
@@ -416,40 +417,30 @@ class SatelliteTracker3D {
 
   private updateUI() {
     const satellites = this.satelliteTracker.getSatellites();
-    const iss = satellites.get('iss');
-    const starlinkCount = Array.from(satellites.values()).filter(sat => sat.type === 'communication').length;
-    const sentinelCount = Array.from(satellites.values()).filter(sat => sat.type === 'earth-observation').length;
     const totalCount = satellites.size;
     const followingSatellite = this.satelliteTracker.getFollowingSatellite();
 
     // Update status displays
     const satelliteCountElement = document.getElementById('satellite-count');
-    const issAltitudeElement = document.getElementById('iss-altitude');
-    const starlinkCountElement = document.getElementById('starlink-count');
-    const sentinelCountElement = document.getElementById('sentinel-count');
-    const trackingStatusElement = document.getElementById('tracking-status');
+    const trackedAltitudeElement = document.getElementById('tracked-altitude');
+    const trackedNameElement = document.getElementById('tracked-name');
+    const trackedSpeedElement = document.getElementById('tracked-speed');
 
     if (satelliteCountElement) satelliteCountElement.textContent = totalCount.toString();
-    if (issAltitudeElement && iss) issAltitudeElement.textContent = iss.altitude.toFixed(0);
-    if (starlinkCountElement) starlinkCountElement.textContent = starlinkCount.toString();
-    if (sentinelCountElement) sentinelCountElement.textContent = sentinelCount.toString();
     
-    // Update tracking status
-    if (trackingStatusElement) {
-      if (followingSatellite) {
-        const satellite = satellites.get(followingSatellite);
-        if (satellite) {
-          const displayName = satellite.shortname || satellite.name.substring(0, 8).toUpperCase();
-          trackingStatusElement.textContent = displayName;
-          trackingStatusElement.style.color = '#00ff88'; // Always green when tracking
-        } else {
-          trackingStatusElement.textContent = 'UNKNOWN';
-          trackingStatusElement.style.color = '#ffffff';
-        }
-      } else {
-        trackingStatusElement.textContent = 'FREE VIEW';
-        trackingStatusElement.style.color = '#ffffff';
+    // Update tracked satellite information
+    if (followingSatellite) {
+      const trackedSatellite = satellites.get(followingSatellite);
+      if (trackedSatellite) {
+        if (trackedAltitudeElement) trackedAltitudeElement.textContent = trackedSatellite.altitude.toFixed(0);
+        if (trackedNameElement) trackedNameElement.textContent = trackedSatellite.shortname || trackedSatellite.name;
+        if (trackedSpeedElement) trackedSpeedElement.textContent = trackedSatellite.velocity.toFixed(2);
       }
+    } else {
+      // No satellite being tracked - show defaults
+      if (trackedAltitudeElement) trackedAltitudeElement.textContent = '---';
+      if (trackedNameElement) trackedNameElement.textContent = '---';
+      if (trackedSpeedElement) trackedSpeedElement.textContent = '---';
     }
     
     // Update satellite tracked only button state

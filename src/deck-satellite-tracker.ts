@@ -1,5 +1,5 @@
 import { Deck } from '@deck.gl/core';
-import { ScatterplotLayer, IconLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, IconLayer, ArcLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap, LngLat } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
 import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
@@ -397,7 +397,14 @@ export class DeckSatelliteTracker {
       this.loadSatelliteIcon(sat.id, sat.image!);
     });
     
-    console.log(`🖼️ Loading icons for ${satellitesWithImages.length} satellites`);
+    // Create dot icons for satellites without images
+    const satellitesWithoutImages = Array.from(this.satellites.values()).filter(sat => !sat.image);
+    satellitesWithoutImages.forEach(sat => {
+      this.createDotIcon(sat.id);
+    });
+    
+    console.log(`🖼️ Loading icons for ${satellitesWithImages.length} satellites with images`);
+    console.log(`🔵 Creating dot icons for ${satellitesWithoutImages.length} satellites without images`);
   }
 
   private loadSatelliteIcon(satelliteId: string, imageUrl: string) {
@@ -432,6 +439,86 @@ export class DeckSatelliteTracker {
       // Fall back to circle for this satellite
     };
     img.src = imageUrl;
+  }
+
+  private createDotIcon(satelliteId: string) {
+    // Create animated movie-style tracking dot with anti-aliasing
+    const dotSize = 24; // Slightly larger for better anti-aliasing
+    const canvas = document.createElement('canvas');
+    canvas.width = dotSize;
+    canvas.height = dotSize;
+    
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Enable anti-aliasing for smooth edges
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      
+      const centerX = dotSize / 2;
+      const centerY = dotSize / 2;
+      
+      // Create animated pulsing effect using time-based opacity
+      const animateFrame = () => {
+        ctx.clearRect(0, 0, dotSize, dotSize);
+        
+        // Calculate pulsing opacity (slow, subtle pulse like in movies)
+        const time = Date.now() * 0.002; // Slow pulse frequency
+        const pulseOpacity = 0.4 + 0.3 * Math.sin(time); // Pulse between 0.4 and 0.7
+        
+        // Outer glow (larger, soft)
+        const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 10);
+        gradient.addColorStop(0, `rgba(0, 255, 136, ${pulseOpacity})`);
+        gradient.addColorStop(0.5, `rgba(0, 255, 136, ${pulseOpacity * 0.3})`);
+        gradient.addColorStop(1, 'rgba(0, 255, 136, 0)');
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+        
+        // Middle ring
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 6, 0, 2 * Math.PI);
+        ctx.strokeStyle = `rgba(0, 255, 136, ${0.8 + 0.2 * Math.sin(time)})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        
+        // Inner bright core (always bright)
+        const coreGradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 4);
+        coreGradient.addColorStop(0, '#ffffff');
+        coreGradient.addColorStop(0.4, '#00ff88');
+        coreGradient.addColorStop(1, '#00cc66');
+        
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 4, 0, 2 * Math.PI);
+        ctx.fillStyle = coreGradient;
+        ctx.fill();
+        
+        // Center bright point
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 1.5, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        
+        // Continue animation
+        requestAnimationFrame(animateFrame);
+      };
+      
+      // Start the animation
+      animateFrame();
+      
+      // Store the dot icon
+      const ICON_MAPPING = {
+        [satelliteId]: { x: 0, y: 0, width: dotSize, height: dotSize, mask: false }
+      };
+      
+      this.satelliteIcons.set(satelliteId, {
+        atlas: canvas,
+        mapping: ICON_MAPPING,
+        width: dotSize,
+        height: dotSize
+      });
+    }
   }
 
   private calculateSatellitePosition(tle1: string, tle2: string, satelliteId?: string) {
@@ -532,7 +619,7 @@ export class DeckSatelliteTracker {
         type: sat.type,
         dimensions: sat.dimensions,
         isFollowed: this.followingSatellite === sat.id,
-        hasImage: sat.image !== undefined
+        hasImage: true // All satellites now have icons (images or dots)
       }));
     
     // Apply LOD filtering
@@ -575,7 +662,7 @@ export class DeckSatelliteTracker {
         const velocity = smoothPos ? smoothPos.velocity : sat.velocity;
         
         return {
-          position: [lng, lat, 0] as [number, number, number],
+          position: [lng, lat, altitude * 1000] as [number, number, number], // Convert km to meters
           id: sat.id,
           name: sat.name,
           type: sat.type,
@@ -668,7 +755,7 @@ export class DeckSatelliteTracker {
           const velocity = smoothPos ? smoothPos.velocity : satellite.velocity;
             
           const data = {
-            position: [lng, lat],
+            position: [lng, lat, altitude * 1000], // Convert km to meters for deck.gl
             icon: satelliteId,
             size: iconSize,
             id: satellite.id,
@@ -708,7 +795,9 @@ export class DeckSatelliteTracker {
         const multiplier = isTracked ? 10 : 2;
         size = Math.min(effectiveZoom * satelliteWidth * multiplier, 120); // Cap at 120px
       } else {
-        size = Math.min(effectiveZoom * satelliteWidth * 3, 200); // Higher zoom gets bigger, cap at 200px
+        // At higher zoom, tracked satellites keep 10x multiplier, others get 3x multiplier
+        const multiplier = isTracked ? 10 : 3;
+        size = Math.min(effectiveZoom * satelliteWidth * multiplier, 200); // Higher zoom gets bigger, cap at 200px
       }
     }
     
@@ -716,24 +805,63 @@ export class DeckSatelliteTracker {
     return Math.max(size, 8);
   }
 
-  // private generateOrbitCircles(): OrbitCircleData[] {
-  //   if (!this.showOrbits) return [];
-  //   
-  //   return Array.from(this.satellites.values())
-  //     .filter(sat => sat.type === 'scientific' || this.followingSatellite === sat.id)
-  //     .map(sat => {
-  //       // Calculate orbit radius based on altitude (simplified circular orbit)
-  //       const earthRadius = 6371000; // meters
-  //       const orbitRadius = (earthRadius + sat.altitude * 1000);
-  //       
-  //       return {
-  //         center: [sat.position.lng, sat.position.lat] as [number, number],
-  //         radius: orbitRadius,
-  //         color: this.getColorForType(sat.type),
-  //         satelliteId: sat.id
-  //       };
-  //     });
-  // }
+  private generateOrbitPaths(): any[] {
+    if (!this.showOrbits) return [];
+    
+    const orbitData: any[] = [];
+    
+    Array.from(this.satellites.values())
+      .filter(sat => sat.type === 'scientific' || this.followingSatellite === sat.id)
+      .forEach(sat => {
+        // Generate orbit path points
+        const orbitPoints = this.calculateOrbitPath(sat);
+        
+        // Create arc segments for the orbit
+        for (let i = 0; i < orbitPoints.length - 1; i++) {
+          orbitData.push({
+            source: orbitPoints[i],
+            target: orbitPoints[i + 1],
+            color: this.getColorForType(sat.type),
+            satelliteId: sat.id
+          });
+        }
+      });
+    
+    return orbitData;
+  }
+  
+  private calculateOrbitPath(sat: SatelliteData): [number, number][] {
+    const points: [number, number][] = [];
+    const numPoints = 64; // Number of points for orbit path
+    
+    try {
+      const satrec = satellite.twoline2satrec(sat.tle1, sat.tle2);
+      const now = new Date();
+      
+      // Generate points for one complete orbit (roughly 90-120 minutes)
+      const orbitPeriod = 90 * 60 * 1000; // 90 minutes in milliseconds
+      
+      for (let i = 0; i < numPoints; i++) {
+        const timeOffset = (i / numPoints) * orbitPeriod;
+        const futureTime = new Date(now.getTime() + timeOffset);
+        
+        const positionAndVelocity = satellite.propagate(satrec, futureTime);
+        if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
+          const gmst = satellite.gstime(futureTime);
+          const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+          
+          const longitude = satellite.degreesLong(positionGd.longitude);
+          const latitude = satellite.degreesLat(positionGd.latitude);
+          
+          points.push([longitude, latitude]);
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to calculate orbit for ${sat.name}:`, error);
+    }
+    
+    return points;
+  }
 
 
   private updateLayers(forceUpdate: boolean = false) {
@@ -772,7 +900,7 @@ export class DeckSatelliteTracker {
 
     const satellitePoints = this.generateSatellitePoints();
     const satelliteIconData = this.generateSatelliteIconData();
-    // const orbitCircles = this.generateOrbitCircles();
+    const orbitPaths = this.generateOrbitPaths();
 
     const layers: any[] = [
       // Satellite points layer (excluding satellites with images)
@@ -821,7 +949,21 @@ export class DeckSatelliteTracker {
       }
     });
 
-    // Orbit paths removed for simplicity
+    // Add orbit paths layer
+    if (orbitPaths.length > 0) {
+      layers.push(
+        new ArcLayer({
+          id: 'orbit-paths',
+          data: orbitPaths,
+          getSourcePosition: (d: any) => d.source,
+          getTargetPosition: (d: any) => d.target,
+          getSourceColor: (d: any) => d.color,
+          getTargetColor: (d: any) => d.color,
+          getWidth: 2,
+          pickable: false
+        })
+      );
+    }
 
     this.deck.setProps({ layers });
   }
@@ -839,6 +981,7 @@ export class DeckSatelliteTracker {
       const satelliteId = info.object.id;
       const satellite = this.satellites.get(satelliteId);
       if (satellite) {
+        console.log('🖱️ SATELLITE CLICKED:', satelliteId, 'Current zoom:', this.map.getZoom());
         this.followSatellite(satelliteId);
         this.showSatelliteInfo(satellite);
       }
@@ -861,22 +1004,36 @@ export class DeckSatelliteTracker {
         targetZoom = preserveZoom ? this.map.getZoom() : 5; // Always zoom to level 5 when selecting a satellite
       }
       
-      console.log('🚀 Starting ultra-smooth tracking for:', satellite.name);
+      console.log('🚀 Starting satellite tracking for:', satellite.name);
+      console.log('🎯 Target zoom:', targetZoom, 'preserveZoom:', preserveZoom, 'explicitZoom:', explicitZoom);
+      console.log('📏 Current zoom before flyTo:', this.map.getZoom());
       
-      // Start ultra-smooth tracking immediately
-      this.startUltraSmoothTracking(satellite);
+      // Stop all existing tracking to avoid interference
+      this.stopSimpleTracking();
+      this.smoothTracker.stopTracking();
+      this.smoothCamera.stopSmoothTracking();
       
-      // Fly to satellite with smooth camera
-      this.smoothCamera.flyToTarget({
+      // Use map.flyTo directly instead of smooth camera to ensure zoom works
+      console.log('📹 Flying to satellite with map.flyTo - zoom:', targetZoom, 'pitch: 60');
+      this.map.flyTo({
         center: [satellite.position.lng, satellite.position.lat],
         zoom: targetZoom,
-        pitch: 60 // Set pitch to 60 degrees when tracking a satellite
-      }, 2000).then(() => {
-        // Camera animation complete, begin smooth tracking
-        console.log('🎬 Camera positioned, ultra-smooth tracking active');
-        console.log('📊 Smooth tracker status:', this.smoothTracker.isTracking());
-        console.log('📊 Smooth camera status:', this.smoothCamera.isTracking());
+        pitch: 60,
+        duration: 2000,
+        essential: true
       });
+      
+      // Verify zoom after flyTo starts
+      setTimeout(() => {
+        console.log('📏 Zoom after flyTo starts:', this.map.getZoom());
+      }, 100);
+      
+      // Start smooth tracking after a delay to let flyTo complete
+      setTimeout(() => {
+        console.log('🎬 Starting ultra-smooth tracking after flyTo');
+        this.startUltraSmoothTracking(satellite);
+        console.log('📊 Smooth tracker status:', this.smoothTracker.isTracking());
+      }, 2100);
       
       this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
       this.updateLayers(true); // Update layers to show orbit path if enabled
@@ -898,17 +1055,30 @@ export class DeckSatelliteTracker {
     
     if (satellite) {
       console.log(`🛰️ Flying to ${satellite.name} with animation - zoom: ${targetZoom}, pitch: ${targetPitch}°, bearing: ${targetBearing}°`);
+      console.log('📏 Current zoom before flyToAnimation:', this.map.getZoom());
       
-      // Start ultra-smooth tracking immediately
-      this.startUltraSmoothTracking(satellite);
+      // Stop all existing tracking to avoid interference
+      this.stopSimpleTracking();
+      this.smoothTracker.stopTracking();
+      this.smoothCamera.stopSmoothTracking();
       
-      // Fly to satellite with smooth camera
-      this.smoothCamera.flyToTarget({
+      // Use map.flyTo directly for consistent behavior
+      this.map.flyTo({
         center: [satellite.position.lng, satellite.position.lat],
         zoom: targetZoom,
         pitch: targetPitch,
-        bearing: targetBearing
-      }, 3000).then(() => {
+        bearing: targetBearing,
+        duration: 3000,
+        essential: true
+      });
+      
+      // Verify zoom after flyTo starts
+      setTimeout(() => {
+        console.log('📏 Zoom after flyToAnimation starts:', this.map.getZoom());
+      }, 100);
+      
+      // Start smooth tracking after delay
+      setTimeout(() => {
         // Camera animation complete, ultra-smooth tracking active
         console.log('🎬 Camera positioned with animation, ultra-smooth tracking active');
         

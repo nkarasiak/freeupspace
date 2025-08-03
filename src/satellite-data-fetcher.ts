@@ -132,7 +132,8 @@ export class SatelliteDataFetcher {
     
     this.overrides.set('GALILEO', {
       type: 'navigation',
-      dimensions: { length: 5.0, width: 3.0, height: 2.4 }
+      dimensions: { length: 5.0, width: 3.0, height: 2.4 },
+      image: 'static/images/esa_galileo.png'
     });
     
     // Default dimensions for unknown satellites
