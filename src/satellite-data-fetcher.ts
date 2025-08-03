@@ -24,13 +24,15 @@ export interface SatelliteOverride {
 export class SatelliteDataFetcher {
   private cache: Map<string, TLEData[]> = new Map();
   private cacheExpiry: Map<string, number> = new Map();
-  private readonly CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+  private readonly CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+  private readonly STORAGE_PREFIX = 'satellite_cache_';
   
   // Local overrides for satellite properties
   private overrides: Map<string, SatelliteOverride> = new Map();
   
   constructor() {
     this.setupDefaultOverrides();
+    this.loadCacheFromStorage();
   }
   
   private setupDefaultOverrides() {
@@ -141,6 +143,105 @@ export class SatelliteDataFetcher {
   }
   
   /**
+   * Load cached data from localStorage on initialization
+   */
+  private loadCacheFromStorage() {
+    try {
+      const keys = Object.keys(localStorage).filter(key => key.startsWith(this.STORAGE_PREFIX));
+      
+      for (const key of keys) {
+        const group = key.replace(this.STORAGE_PREFIX, '');
+        const storedData = localStorage.getItem(key);
+        
+        if (storedData) {
+          const { data, expiry } = JSON.parse(storedData);
+          const now = Date.now();
+          
+          if (expiry > now) {
+            this.cache.set(group, data);
+            this.cacheExpiry.set(group, expiry);
+            console.log(`📁 Loaded cached data for ${group} from localStorage (${data.length} satellites)`);
+          } else {
+            localStorage.removeItem(key);
+            console.log(`🗑️ Removed expired cache for ${group}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load cache from localStorage:', error);
+    }
+  }
+  
+  /**
+   * Save cache data to localStorage for persistence
+   */
+  private saveCacheToStorage(group: string, data: TLEData[], expiry: number) {
+    try {
+      const storageKey = this.STORAGE_PREFIX + group;
+      const storageData = {
+        data,
+        expiry,
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify(storageData));
+      console.log(`💾 Saved cache for ${group} to localStorage`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to save cache for ${group} to localStorage:`, error);
+      
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        this.cleanupOldCache();
+        
+        try {
+          localStorage.setItem(this.STORAGE_PREFIX + group, JSON.stringify({
+            data,
+            expiry,
+            timestamp: Date.now()
+          }));
+          console.log(`💾 Saved cache for ${group} after cleanup`);
+        } catch (retryError) {
+          console.error(`❌ Failed to save cache even after cleanup:`, retryError);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Clean up old cache entries to free up localStorage space
+   */
+  private cleanupOldCache() {
+    try {
+      const keys = Object.keys(localStorage).filter(key => key.startsWith(this.STORAGE_PREFIX));
+      const cacheEntries: Array<{key: string, timestamp: number}> = [];
+      
+      for (const key of keys) {
+        const storedData = localStorage.getItem(key);
+        if (storedData) {
+          try {
+            const { timestamp } = JSON.parse(storedData);
+            cacheEntries.push({ key, timestamp: timestamp || 0 });
+          } catch {
+            localStorage.removeItem(key);
+          }
+        }
+      }
+      
+      cacheEntries.sort((a, b) => a.timestamp - b.timestamp);
+      
+      const keysToRemove = Math.max(1, Math.floor(cacheEntries.length * 0.3));
+      for (let i = 0; i < keysToRemove; i++) {
+        localStorage.removeItem(cacheEntries[i].key);
+        const group = cacheEntries[i].key.replace(this.STORAGE_PREFIX, '');
+        this.cache.delete(group);
+        this.cacheExpiry.delete(group);
+        console.log(`🗑️ Removed old cache for ${group}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to cleanup old cache:', error);
+    }
+  }
+  
+  /**
    * Fetch TLE data from Celestrak for a specific satellite group
    * Handles pagination to get ALL satellites
    */
@@ -230,9 +331,11 @@ export class SatelliteDataFetcher {
         throw new Error(`No valid TLE data found for ${group} from any URL`);
       }
       
-      // Cache the results
+      // Cache the results both in memory and localStorage
+      const expiry = now + this.CACHE_DURATION;
       this.cache.set(cacheKey, allTleData);
-      this.cacheExpiry.set(cacheKey, now + this.CACHE_DURATION);
+      this.cacheExpiry.set(cacheKey, expiry);
+      this.saveCacheToStorage(cacheKey, allTleData, expiry);
       
       console.log(`✅ Total fetched: ${allTleData.length} satellites from ${group} (${successfulFetches} successful fetches)`);
       return allTleData;
@@ -416,6 +519,41 @@ export class SatelliteDataFetcher {
   clearCache() {
     this.cache.clear();
     this.cacheExpiry.clear();
-    console.log('🗑️ Satellite data cache cleared');
+    
+    // Clear localStorage cache as well
+    try {
+      const keys = Object.keys(localStorage).filter(key => key.startsWith(this.STORAGE_PREFIX));
+      for (const key of keys) {
+        localStorage.removeItem(key);
+      }
+      console.log('🗑️ Satellite data cache cleared from memory and localStorage');
+    } catch (error) {
+      console.warn('⚠️ Failed to clear localStorage cache:', error);
+      console.log('🗑️ Satellite data cache cleared from memory only');
+    }
+  }
+  
+  /**
+   * Get cache statistics
+   */
+  getCacheStats(): { groups: number, totalSatellites: number, cacheAgeHours: { [group: string]: number } } {
+    const stats = {
+      groups: this.cache.size,
+      totalSatellites: 0,
+      cacheAgeHours: {} as { [group: string]: number }
+    };
+    
+    const now = Date.now();
+    
+    for (const [group, data] of this.cache.entries()) {
+      stats.totalSatellites += data.length;
+      const expiry = this.cacheExpiry.get(group);
+      if (expiry) {
+        const ageMs = this.CACHE_DURATION - (expiry - now);
+        stats.cacheAgeHours[group] = Math.round(ageMs / (60 * 60 * 1000) * 10) / 10;
+      }
+    }
+    
+    return stats;
   }
 }
