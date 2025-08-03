@@ -404,9 +404,26 @@ class SatelliteTracker3D {
     if (trackingStatusElement) {
       if (followingSatellite) {
         const satellite = satellites.get(followingSatellite);
-        trackingStatusElement.textContent = satellite ? satellite.name.substring(0, 8).toUpperCase() : 'UNKNOWN';
+        if (satellite) {
+          // Check if ultra-smooth tracking is active
+          const trackingQuality = this.satelliteTracker.getTrackingQuality();
+          const isUltraSmooth = trackingQuality > 0;
+          const displayName = satellite.name.substring(0, 8).toUpperCase();
+          
+          if (isUltraSmooth) {
+            const qualityPercent = Math.round(trackingQuality * 100);
+            trackingStatusElement.textContent = `${displayName} (${qualityPercent}%)`;
+            trackingStatusElement.style.color = qualityPercent > 80 ? '#00ff88' : qualityPercent > 50 ? '#ffd23f' : '#ff6b35';
+          } else {
+            trackingStatusElement.textContent = displayName;
+            trackingStatusElement.style.color = '#ffffff';
+          }
+        } else {
+          trackingStatusElement.textContent = 'UNKNOWN';
+        }
       } else {
         trackingStatusElement.textContent = 'FREE VIEW';
+        trackingStatusElement.style.color = '#ffffff';
       }
     }
   }

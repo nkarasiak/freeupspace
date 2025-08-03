@@ -6,6 +6,8 @@ import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
 import { PerformanceManager } from './performance-manager';
 import { LODManager, ViewportInfo, SatelliteForLOD } from './lod-manager';
 import { OrbitalInterpolator, SatellitePosition } from './orbital-interpolator';
+import { SmoothTracker, PredictivePosition } from './smooth-tracker';
+import { SmoothCamera } from './smooth-camera';
 
 export interface SatelliteData {
   id: string;
@@ -73,6 +75,10 @@ export class DeckSatelliteTracker {
   private satelliteWorker: Worker | null = null;
   private orbitalInterpolator = new OrbitalInterpolator();
   
+  // Ultra-smooth tracking system
+  private smoothTracker = new SmoothTracker();
+  private smoothCamera: SmoothCamera;
+  
   // Satellite type filters
   private enabledSatelliteTypes = new Set<string>([
     'scientific', 'communication', 'earth-observation', 'weather', 'navigation'
@@ -89,6 +95,13 @@ export class DeckSatelliteTracker {
 
   constructor(map: MapLibreMap) {
     this.map = map;
+    this.smoothCamera = new SmoothCamera(map);
+    
+    // Setup smooth tracker with position update callback
+    this.smoothTracker = new SmoothTracker((position: PredictivePosition) => {
+      this.smoothCamera.updateTargetPosition(position);
+    });
+    
     this.initializeDeck();
     this.initializeWorker();
   }
@@ -754,7 +767,7 @@ export class DeckSatelliteTracker {
     if (!info.object && this.followingSatellite) {
       // Clicked on empty area, stop following
       this.stopFollowing();
-      this.showMessage('🔓 Stopped following satellite', 'info');
+      this.showMessage('🔓 Stopped ultra-smooth tracking', 'info');
     }
   }
 
@@ -783,17 +796,19 @@ export class DeckSatelliteTracker {
         targetZoom = preserveZoom ? this.map.getZoom() : 5; // Always zoom to level 5 when selecting a satellite
       }
       
-      this.map.flyTo({
+      // Start ultra-smooth tracking immediately
+      this.startUltraSmoothTracking(satellite);
+      
+      // Fly to satellite with smooth camera
+      this.smoothCamera.flyToTarget({
         center: [satellite.position.lng, satellite.position.lat],
-        zoom: targetZoom,
-        duration: 2000,
-        essential: true
+        zoom: targetZoom
+      }, 2000).then(() => {
+        // Camera animation complete, begin smooth tracking
+        console.log('🎬 Camera positioned, ultra-smooth tracking active');
       });
       
-      // Start simple tracking
-      this.startSimpleTracking();
-      
-      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
+      this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
       this.updateLayers(); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -836,6 +851,11 @@ export class DeckSatelliteTracker {
 
   stopFollowing() {
     this.followingSatellite = null;
+    
+    // Stop ultra-smooth tracking system
+    this.smoothTracker.stopTracking();
+    this.smoothCamera.stopSmoothTracking();
+    
     this.stopSimpleTracking();
     this.updateLayers();
     
@@ -862,6 +882,27 @@ export class DeckSatelliteTracker {
       cancelAnimationFrame(this.trackingInterval);
       this.trackingInterval = null;
     }
+  }
+
+  // Start ultra-smooth tracking for video-like performance
+  private startUltraSmoothTracking(satellite: SatelliteData) {
+    console.log(`🎬 Starting ultra-smooth tracking for ${satellite.name}`);
+    
+    // Stop any existing tracking
+    this.stopSimpleTracking();
+    this.smoothTracker.stopTracking();
+    this.smoothCamera.stopSmoothTracking();
+    
+    // Start the smooth tracker with satellite TLE data
+    this.smoothTracker.startTracking(satellite.id, satellite.tle1, satellite.tle2);
+    
+    // Get initial position and start smooth camera tracking
+    const initialPosition = this.smoothTracker.getPredictedPosition();
+    if (initialPosition) {
+      this.smoothCamera.startSmoothTracking(initialPosition);
+    }
+    
+    console.log(`🚀 Ultra-smooth tracking active for ${satellite.name} - 60fps video-like performance`);
   }
 
   private updateCameraToFollowedSatellite() {
@@ -1522,6 +1563,16 @@ Click      Select/follow satellite
 
   isCockpitHidden(): boolean {
     return !this.isCockpitVisible;
+  }
+
+  // Get ultra-smooth tracking quality (0-1, where 1 is perfect)
+  getTrackingQuality(): number {
+    return this.smoothTracker.getTrackingQuality();
+  }
+
+  // Check if ultra-smooth tracking is active
+  isUltraSmoothTracking(): boolean {
+    return this.smoothTracker.isTracking() && this.smoothCamera.isTracking();
   }
 
   stop() {
