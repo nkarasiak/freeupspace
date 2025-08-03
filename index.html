@@ -302,7 +302,22 @@
       /* Search Panel */
       #search-panel {
         min-width: 380px;
-        flex: 1.2;
+        flex: 2;
+      }
+
+      /* Night Mode Toggle */
+      #night-mode-toggle {
+        cursor: pointer;
+        min-width: 150px;
+        flex: 1;
+      }
+
+      #night-mode-toggle:hover {
+        background: rgba(255, 193, 7, 0.15);
+        border-color: rgba(255, 193, 7, 0.5);
+        color: #ffc107;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
       }
       
       #satellite-search {
@@ -621,59 +636,18 @@
       <!-- Control Sections -->
       <div id="control-sections">
         
-        <!-- Navigation Controls -->
-        <div class="control-section">
-          <div class="section-title" data-section="navigation">Navigation</div>
-          <div class="section-content" id="navigation-content">
-            <button class="cockpit-btn" id="toggle-basemap">🌗 Day/Night Mode</button>
-            <button class="cockpit-btn" id="track-iss">🛰️ Track ISS</button>
-            <button class="cockpit-btn" id="show-starlink">🔭 Orbit Paths</button>
-            <button class="cockpit-btn" id="pause-updates">⏸️ Pause Updates</button>
-            <button class="cockpit-btn" id="satellite-tracked-only">🎯 Satellite tracked only</button>
-          </div>
-        </div>
-        
-        <!-- Satellite Filters -->
-        <div class="control-section" id="filter-panel">
-          <div class="section-title" data-section="filters">Satellite Filters</div>
-          <div class="section-content" id="filters-content">
-            <div class="filter-group">
-              <label class="filter-item">
-                <input type="checkbox" id="filter-scientific" checked>
-                <span class="filter-label">🔬 Scientific</span>
-                <span class="filter-count" id="count-scientific">0</span>
-              </label>
-              <label class="filter-item">
-                <input type="checkbox" id="filter-communication" checked>
-                <span class="filter-label">📡 Communication</span>
-                <span class="filter-count" id="count-communication">0</span>
-              </label>
-              <label class="filter-item">
-                <input type="checkbox" id="filter-earth-observation" checked>
-                <span class="filter-label">🛰️ Earth Observation</span>
-                <span class="filter-count" id="count-earth-observation">0</span>
-              </label>
-              <label class="filter-item">
-                <input type="checkbox" id="filter-weather" checked>
-                <span class="filter-label">🌦️ Weather</span>
-                <span class="filter-count" id="count-weather">0</span>
-              </label>
-              <label class="filter-item">
-                <input type="checkbox" id="filter-navigation" checked>
-                <span class="filter-label">🧭 Navigation</span>
-                <span class="filter-count" id="count-navigation">0</span>
-              </label>
-            </div>
+        <!-- Satellite Search Dropdown -->
+        <div class="control-section" id="search-panel">
+          <div class="section-title" data-section="search">🔍 Satellite Search</div>
+          <div class="section-content" id="search-content">
+            <input type="text" id="satellite-search" placeholder="Search satellites..." />
+            <div id="search-results"></div>
           </div>
         </div>
 
-        <!-- Satellite Search -->
-        <div class="control-section" id="search-panel">
-          <div class="section-title" data-section="search">Satellite Search</div>
-          <div class="section-content" id="search-content">
-            <input type="text" id="satellite-search" placeholder="🔍 Search satellites..." />
-            <div id="search-results"></div>
-          </div>
+        <!-- Night Mode Toggle -->
+        <div class="control-section">
+          <div class="section-title" id="night-mode-toggle">🌗 Night Mode</div>
         </div>
         
       </div>
@@ -739,6 +713,35 @@
               }
             }
           });
+        });
+
+        // Handle night mode toggle
+        const nightModeToggle = document.getElementById('night-mode-toggle');
+        if (nightModeToggle) {
+          nightModeToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Close any open dropdowns when clicking night mode
+            closeAllDropdowns();
+            
+            // Dispatch custom event for night mode toggle
+            // This can be handled by the main application
+            const nightModeEvent = new CustomEvent('nightModeToggle', {
+              detail: { timestamp: Date.now() }
+            });
+            document.dispatchEvent(nightModeEvent);
+            
+            // Visual feedback
+            this.style.background = 'rgba(255, 193, 7, 0.2)';
+            setTimeout(() => {
+              this.style.background = '';
+            }, 200);
+          });
+        }
+
+        // Add global event listener to connect night mode with the main satellite tracker
+        document.addEventListener('nightModeToggle', function(event) {
+          // This will be handled by the main.ts file
+          console.log('🌙 Night mode toggle event dispatched');
         });
         
         // Close dropdown when clicking outside

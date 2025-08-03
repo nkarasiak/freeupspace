@@ -201,6 +201,11 @@ class SatelliteTracker3D {
     showStarlinkBtn?.addEventListener('click', () => this.toggleStarlinkVisibility());
     pauseBtn?.addEventListener('click', () => this.togglePauseUpdates());
     satelliteTrackedOnlyBtn?.addEventListener('click', () => this.toggleSatelliteTrackedOnly());
+
+    // Handle night mode toggle from the new simplified cockpit
+    document.addEventListener('nightModeToggle', () => {
+      this.toggleBasemap();
+    });
     
     // Direct pitch control that bypasses Deck.gl limitation
     pitchSlider?.addEventListener('input', (e) => {

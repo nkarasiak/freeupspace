@@ -88,7 +88,8 @@ export class DeckSatelliteTracker {
   ]);
   
   // Satellite visibility filter - when tracking, show only tracked satellite
-  private showTrackedSatelliteOnly = false;
+  // DEFAULT: true to prevent CPU/memory nightmare from showing all satellites
+  private showTrackedSatelliteOnly = true;
   
   // Satellite size scaling
   private satelliteSizeMultiplier = 1.0; // Default size multiplier for all satellites
@@ -974,12 +975,10 @@ export class DeckSatelliteTracker {
     this.deck.setProps({ layers });
   }
 
-  private handleClick(info: any) {
-    if (!info.object && this.followingSatellite) {
-      // Clicked on empty area, stop following
-      this.stopFollowing();
-      this.showMessage('🔓 Stopped ultra-smooth tracking', 'info');
-    }
+  private handleClick(_info: any) {
+    // DISABLED: Do not stop following or show all satellites when clicking empty areas
+    // This prevents the CPU/memory nightmare of loading all satellites at once
+    // Only individual satellite clicks should change tracking
   }
 
   private handleSatelliteClick(info: any) {
@@ -1166,8 +1165,9 @@ export class DeckSatelliteTracker {
 
   stopFollowing() {
     this.followingSatellite = null;
-    // Disable "show tracked satellite only" when stopping tracking
-    this.showTrackedSatelliteOnly = false;
+    // KEEP "show tracked satellite only" enabled to prevent showing all satellites
+    // This prevents the CPU/memory nightmare when stopping tracking
+    // this.showTrackedSatelliteOnly = false; // DISABLED
     
     // Stop ultra-smooth tracking system
     this.smoothTracker.stopTracking();
