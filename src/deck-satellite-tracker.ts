@@ -59,6 +59,28 @@ export class DeckSatelliteTracker {
     this.onTrackingChangeCallback = callback;
   }
 
+  private setupAggressivePitchOverride() {
+    // Simplified approach: Let MapLibre handle pitch completely
+    // Deck.gl should only handle satellite rendering, not pitch control
+    
+    this.deck.setProps({
+      onViewStateChange: (params) => {
+        const { viewState } = params;
+        
+        // Only sync non-pitch properties with MapLibre
+        // Let the custom Ctrl+drag handler control pitch directly
+        this.map.jumpTo({
+          center: [viewState.longitude, viewState.latitude],
+          zoom: viewState.zoom,
+          bearing: viewState.bearing
+          // Deliberately omit pitch - let MapLibre handle it
+        });
+      }
+    });
+    
+    console.log('🔧 Simplified pitch control: MapLibre handles pitch, Deck.gl handles rendering');
+  }
+
   private initializeDeck() {
     // Create canvas element for deck.gl first
     const canvas = document.createElement('canvas');
@@ -88,20 +110,35 @@ export class DeckSatelliteTracker {
         latitude: mapCenter.lat,
         zoom: mapZoom,
         pitch: 0,
-        bearing: 0
+        bearing: 0,
+        maxPitch: 85,
+        minPitch: 0
       },
-      controller: true, // Enable deck.gl interactions
+      controller: {
+        dragPan: true,
+        dragRotate: true,
+        scrollZoom: true,
+        doubleClickZoom: true,
+        touchRotate: false,
+        keyboard: true
+      },
       onViewStateChange: ({ viewState }) => {
-        // Sync with MapLibre view
+        // Sync with MapLibre view but don't set pitch
+        // Let MapLibre handle pitch control entirely
         this.map.jumpTo({
           center: [viewState.longitude, viewState.latitude],
           zoom: viewState.zoom,
-          bearing: viewState.bearing,
-          pitch: viewState.pitch
+          bearing: viewState.bearing
+          // Deliberately omit pitch - let MapLibre control it
         });
       },
       onClick: this.handleClick.bind(this)
     });
+
+    // Add aggressive pitch override after initialization
+    setTimeout(() => {
+      this.setupAggressivePitchOverride();
+    }, 500);
 
     // Sync deck.gl view with MapLibre
     const syncView = () => {

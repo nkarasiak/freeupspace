@@ -36,34 +36,35 @@ export class URLState {
     }
     
     const url = new URL(window.location.href);
+    const originalUrl = url.toString();
+    
     url.searchParams.delete('x');
     url.searchParams.delete('y');
     
+    let urlChanged = false;
+    
+    // Update zoom only if significantly different (increased threshold)
     const currentUrlZoomStr = url.searchParams.get('zoom');
-    const currentUrlZoom = currentUrlZoomStr ? parseFloat(currentUrlZoomStr) : zoom;
-    if (Math.abs(zoom - currentUrlZoom) > 0.01) {
-      console.log(`🔄 Updating URL zoom from ${currentUrlZoom} to ${zoom.toFixed(2)}`);
-      url.searchParams.set('zoom', zoom.toFixed(2));
-    } else if (!currentUrlZoomStr) {
-      // Always set zoom if it doesn't exist in URL
-      console.log(`🔄 Setting initial URL zoom to ${zoom.toFixed(2)}`);
-      url.searchParams.set('zoom', zoom.toFixed(2));
+    const currentUrlZoom = currentUrlZoomStr ? parseFloat(currentUrlZoomStr) : null;
+    if (currentUrlZoom === null || Math.abs(zoom - currentUrlZoom) > 0.1) {
+      url.searchParams.set('zoom', zoom.toFixed(1));
+      urlChanged = true;
     }
     
     // Update pitch if provided and significantly different
     if (pitch !== undefined) {
       const currentUrlPitchStr = url.searchParams.get('pitch');
       const currentUrlPitch = currentUrlPitchStr ? parseFloat(currentUrlPitchStr) : 0;
-      if (Math.abs(pitch - currentUrlPitch) > 0.1) {
-        console.log(`🔄 Updating URL pitch from ${currentUrlPitch} to ${pitch.toFixed(1)}`);
-        url.searchParams.set('pitch', pitch.toFixed(1));
-      } else if (!currentUrlPitchStr && pitch > 0.1) {
-        // Set pitch in URL if it doesn't exist and pitch is not near zero
-        url.searchParams.set('pitch', pitch.toFixed(1));
-      }
-      // Remove pitch parameter if it's close to zero
-      if (pitch < 0.1) {
-        url.searchParams.delete('pitch');
+      
+      if (pitch < 1) {
+        // Remove pitch parameter if it's very small
+        if (currentUrlPitchStr) {
+          url.searchParams.delete('pitch');
+          urlChanged = true;
+        }
+      } else if (Math.abs(pitch - currentUrlPitch) > 1) {
+        url.searchParams.set('pitch', pitch.toFixed(0));
+        urlChanged = true;
       }
     }
     
@@ -75,26 +76,34 @@ export class URLState {
       const normalizedBearing = ((bearing % 360) + 360) % 360;
       const normalizedCurrentBearing = ((currentUrlBearing % 360) + 360) % 360;
       
-      if (Math.abs(normalizedBearing - normalizedCurrentBearing) > 0.1) {
-        console.log(`🔄 Updating URL bearing from ${normalizedCurrentBearing.toFixed(1)} to ${normalizedBearing.toFixed(1)}`);
-        url.searchParams.set('bearing', normalizedBearing.toFixed(1));
-      } else if (!currentUrlBearingStr && Math.abs(normalizedBearing) > 0.1) {
-        // Set bearing in URL if it doesn't exist and bearing is not near zero
-        url.searchParams.set('bearing', normalizedBearing.toFixed(1));
-      }
-      // Remove bearing parameter if it's close to zero
-      if (Math.abs(normalizedBearing) < 0.1) {
-        url.searchParams.delete('bearing');
+      if (Math.abs(normalizedBearing) < 1) {
+        // Remove bearing parameter if it's very small
+        if (currentUrlBearingStr) {
+          url.searchParams.delete('bearing');
+          urlChanged = true;
+        }
+      } else if (Math.abs(normalizedBearing - normalizedCurrentBearing) > 1) {
+        url.searchParams.set('bearing', normalizedBearing.toFixed(0));
+        urlChanged = true;
       }
     }
     
-    if (followingSatellite) {
-      url.searchParams.set('satellite', followingSatellite);
-    } else {
-      url.searchParams.delete('satellite');
+    // Update satellite tracking
+    const currentSatellite = url.searchParams.get('satellite');
+    if (followingSatellite !== currentSatellite) {
+      if (followingSatellite) {
+        url.searchParams.set('satellite', followingSatellite);
+      } else {
+        url.searchParams.delete('satellite');
+      }
+      urlChanged = true;
     }
     
-    window.history.replaceState({}, '', url.toString());
+    // Only update URL if something actually changed
+    if (urlChanged && url.toString() !== originalUrl) {
+      console.log(`🔄 Updating URL: ${originalUrl} -> ${url.toString()}`);
+      window.history.replaceState({}, '', url.toString());
+    }
   }
 
   removeInvalidSatellite() {
@@ -108,20 +117,5 @@ export class URLState {
     map.on('zoomend', () => updateCallback());
     map.on('pitchend', () => updateCallback());
     map.on('rotateend', () => updateCallback());
-    
-    map.on('move', () => {
-      clearTimeout((map as any).urlUpdateTimeout);
-      (map as any).urlUpdateTimeout = setTimeout(() => updateCallback(), 500);
-    });
-    
-    map.on('pitch', () => {
-      clearTimeout((map as any).urlUpdateTimeout);
-      (map as any).urlUpdateTimeout = setTimeout(() => updateCallback(), 500);
-    });
-    
-    map.on('rotate', () => {
-      clearTimeout((map as any).urlUpdateTimeout);
-      (map as any).urlUpdateTimeout = setTimeout(() => updateCallback(), 500);
-    });
   }
 }

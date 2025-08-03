@@ -1,4 +1,4 @@
-import { Map as MapLibreMap, NavigationControl, AttributionControl } from 'maplibre-gl';
+import { Map as MapLibreMap, AttributionControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DeckSatelliteTracker } from './deck-satellite-tracker';
 import { URLState } from './url-state';
@@ -37,10 +37,16 @@ class SatelliteTracker3D {
       pitch: initialPitch, // Use pitch from URL
       bearing: initialBearing, // Use bearing from URL
       attributionControl: false, // Disable default attribution control to avoid duplicates
-      maxPitch: 85 // Allow up to 85 degrees tilt for 3D terrain viewing
+      maxPitch: 85, // Allow up to 85 degrees tilt for 3D terrain viewing
+      pitchWithRotate: false, // Disable pitch-with-rotate to avoid conflicts
+      dragRotate: false, // Disable default drag rotate
+      touchPitch: false // Disable touch pitch
     });
 
-    this.map.addControl(new NavigationControl(), 'top-right');
+    // Disable MapLibre navigation control to avoid conflicts with Deck.gl
+    // We'll handle pitch separately through the custom slider
+    // const navControl = new NavigationControl();
+    // this.map.addControl(navControl, 'top-right');
     
     // Add attribution control and ensure it's collapsed by default
     const attributionControl = new AttributionControl({ compact: true });
@@ -59,6 +65,11 @@ class SatelliteTracker3D {
     this.map.on('load', () => {
       this.addDayBasemap();
       this.add3DTerrain();
+      
+      // Apply working pitch override from test page
+      setTimeout(() => {
+        this.applyPitchOverride();
+      }, 500);
     });
     
   }
@@ -150,6 +161,10 @@ class SatelliteTracker3D {
       exaggeration: 3 // Exaggerate elevation by 3x for dramatic effect from satellite view
     });
 
+    // Apply pitch override after terrain is added
+    setTimeout(() => {
+      this.applyPitchOverride();
+    }, 100);
   }
 
   private getFirstSatelliteLayerId(): string | undefined {
@@ -167,10 +182,32 @@ class SatelliteTracker3D {
     const toggleBtn = document.getElementById('toggle-basemap');
     const trackIssBtn = document.getElementById('track-iss');
     const showStarlinkBtn = document.getElementById('show-starlink');
+    const pitchSlider = document.getElementById('pitch-slider') as HTMLInputElement;
+    const pitchValue = document.getElementById('pitch-value') as HTMLSpanElement;
 
     toggleBtn?.addEventListener('click', () => this.toggleBasemap());
     trackIssBtn?.addEventListener('click', () => this.focusOnISS());
     showStarlinkBtn?.addEventListener('click', () => this.toggleStarlinkVisibility());
+    
+    // Direct pitch control that bypasses Deck.gl limitation
+    pitchSlider?.addEventListener('input', (e) => {
+      const pitch = parseInt((e.target as HTMLInputElement).value);
+      pitchValue.textContent = pitch.toString();
+      
+      // Directly set MapLibre GL pitch (bypasses Deck.gl 60° limit)
+      this.map.setPitch(pitch);
+      console.log(`🎯 Direct MapLibre pitch set to: ${pitch}°`);
+    });
+    
+    // Update slider when map pitch changes
+    this.map.on('pitch', () => {
+      const currentPitch = Math.round(this.map.getPitch());
+      if (pitchSlider) pitchSlider.value = currentPitch.toString();
+      if (pitchValue) pitchValue.textContent = currentPitch.toString();
+    });
+    
+    // Add custom Ctrl+drag pitch handling that uses MapLibre directly
+    this.setupCustomPitchControl();
   }
 
   private toggleBasemap() {
@@ -243,6 +280,80 @@ class SatelliteTracker3D {
 
   private setupURLSharing() {
     this.urlState.setupURLSharing(this.map, () => this.updateURL());
+  }
+
+  private applyPitchOverride() {
+    console.log('🔧 Applying pitch override to enable 85° pitch...');
+    
+    const map = this.map as any;
+    
+    try {
+      // Method 1: Standard API
+      map.setMaxPitch(85);
+      console.log('✅ setMaxPitch(85) called');
+      
+      // Method 2: Transform override
+      if (map.transform) {
+        map.transform.maxPitch = 85;
+        map.transform._maxPitch = 85;
+        console.log('✅ transform.maxPitch set to 85');
+      }
+      
+      // Method 3: Internal properties
+      map._maxPitch = 85;
+      console.log('✅ _maxPitch set to 85');
+      
+      // Method 4: Force update
+      if (map._update) {
+        map._update();
+        console.log('✅ _update() called');
+      }
+      
+      console.log('📐 Pitch override complete. MaxPitch:', map.getMaxPitch());
+      
+    } catch (error) {
+      console.error('❌ Error during maxPitch override:', error);
+    }
+  }
+
+  private setupCustomPitchControl() {
+    let isDragging = false;
+    let lastY = 0;
+    
+    console.log('🔧 Setting up simple pitch control on document...');
+    
+    // Attach to document to catch all events
+    document.addEventListener('mousedown', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        isDragging = true;
+        lastY = e.clientY;
+        e.preventDefault();
+        console.log('🖱️ Ctrl+mousedown: Starting pitch control');
+      }
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging && (e.ctrlKey || e.metaKey)) {
+        const deltaY = lastY - e.clientY;
+        const currentPitch = this.map.getPitch();
+        const newPitch = Math.min(85, Math.max(0, currentPitch + deltaY * 0.3));
+        
+        this.map.setPitch(newPitch);
+        console.log(`🎯 Pitch: ${currentPitch.toFixed(1)}° → ${newPitch.toFixed(1)}°`);
+        
+        lastY = e.clientY;
+        e.preventDefault();
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        console.log('🖱️ Mouseup - ending pitch control');
+        isDragging = false;
+      }
+    });
+    
+    console.log('🖱️ Document-level Ctrl+drag pitch control enabled');
   }
 
   private updateUI() {
