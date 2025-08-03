@@ -7,6 +7,7 @@ class SatelliteTracker3D {
   private map!: MapLibreMap;
   private satelliteTracker!: DeckSatelliteTracker;
   private isDayMode = true;
+  private isGlobeMode = true; // Start with globe projection
   private urlState = new URLState();
   private initialZoom!: number;
   private isInitializing = true;
@@ -80,6 +81,11 @@ class SatelliteTracker3D {
       setTimeout(() => {
         this.applyPitchOverride();
       }, 500);
+    });
+    
+    // Set up globe projection after style loads
+    this.map.on('style.load', () => {
+      this.setGlobeProjection();
     });
     
   }
@@ -177,6 +183,76 @@ class SatelliteTracker3D {
     }, 100);
   }
 
+  private setGlobeProjection() {
+    try {
+      console.log('🌍 Setting globe projection...');
+      this.map.setProjection({ type: 'globe' });
+      console.log('✅ Globe projection enabled');
+    } catch (error) {
+      console.warn('⚠️ Globe projection not supported, falling back to mercator:', error);
+      this.isGlobeMode = false;
+    }
+  }
+
+  private toggleProjection() {
+    try {
+      if (this.isGlobeMode) {
+        console.log('🗺️ Switching to mercator projection...');
+        this.map.setProjection({ type: 'mercator' });
+        this.isGlobeMode = false;
+        console.log('✅ Mercator projection enabled');
+        this.showMessage('🗺️ Mercator projection enabled', 'info');
+      } else {
+        console.log('🌍 Switching to globe projection...');
+        this.map.setProjection({ type: 'globe' });
+        this.isGlobeMode = true;
+        console.log('✅ Globe projection enabled');
+        this.showMessage('🌍 Globe projection enabled', 'info');
+      }
+    } catch (error) {
+      console.warn('⚠️ Projection switch failed:', error);
+      this.showMessage('⚠️ Projection switch failed', 'error');
+    }
+  }
+
+  private showMessage(message: string, type: 'success' | 'error' | 'warning' | 'info') {
+    const messageDiv = document.createElement('div');
+    messageDiv.style.cssText = `
+      position: fixed;
+      top: 200px;
+      right: 20px;
+      z-index: 2000;
+      padding: 10px 15px;
+      border-radius: 6px;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+    `;
+    
+    switch (type) {
+      case 'success':
+        messageDiv.style.backgroundColor = 'rgba(0, 255, 0, 0.8)';
+        break;
+      case 'error':
+        messageDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.8)';
+        break;
+      case 'warning':
+        messageDiv.style.backgroundColor = 'rgba(255, 165, 0, 0.8)';
+        break;
+      case 'info':
+        messageDiv.style.backgroundColor = 'rgba(0, 150, 255, 0.8)';
+        break;
+    }
+    
+    messageDiv.textContent = message;
+    document.body.appendChild(messageDiv);
+    
+    setTimeout(() => {
+      messageDiv.remove();
+    }, 3000);
+  }
+
   private getFirstSatelliteLayerId(): string | undefined {
     // Return the first satellite layer ID to ensure basemap layers are below satellites
     const satelliteLayers = ['satellites-main', 'satellites-iss-icon', 'satellites-starlink-icon', 'satellites-sentinel-icon'];
@@ -206,6 +282,21 @@ class SatelliteTracker3D {
     // Handle night mode toggle from the new simplified cockpit
     document.addEventListener('nightModeToggle', () => {
       this.toggleBasemap();
+    });
+    
+    // Add keyboard shortcut for projection toggle
+    document.addEventListener('keydown', (e) => {
+      // Only respond to shortcuts if no input elements are focused
+      if (document.activeElement?.tagName === 'INPUT') {
+        return;
+      }
+      
+      if (e.key === 'g' || e.key === 'G') {
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.toggleProjection();
+        }
+      }
     });
     
     // Direct pitch control that bypasses Deck.gl limitation

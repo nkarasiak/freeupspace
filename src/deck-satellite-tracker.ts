@@ -1754,6 +1754,7 @@ R          Reset tracked satellite to normal size
 
 🎛️ INTERFACE CONTROLS:
 C          Hide/show cockpit
+G          Toggle Globe/Mercator projection
 H          Show this help
 
 📍 CAMERA CONTROLS:
