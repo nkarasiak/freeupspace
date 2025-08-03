@@ -827,19 +827,21 @@ export class DeckSatelliteTracker {
     if (satellite) {
       console.log(`🛰️ Flying to ${satellite.name} with animation - zoom: ${targetZoom}, pitch: ${targetPitch}°, bearing: ${targetBearing}°`);
       
-      this.map.flyTo({
+      // Start ultra-smooth tracking immediately
+      this.startUltraSmoothTracking(satellite);
+      
+      // Fly to satellite with smooth camera
+      this.smoothCamera.flyToTarget({
         center: [satellite.position.lng, satellite.position.lat],
         zoom: targetZoom,
         pitch: targetPitch,
-        bearing: targetBearing,
-        duration: 3000, // Slightly longer for URL loads to show the smooth animation
-        essential: true
+        bearing: targetBearing
+      }, 3000).then(() => {
+        // Camera animation complete, ultra-smooth tracking active
+        console.log('🎬 Camera positioned with animation, ultra-smooth tracking active');
       });
       
-      // Start simple tracking
-      this.startSimpleTracking();
-      
-      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
+      this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
       this.updateLayers(); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -865,17 +867,6 @@ export class DeckSatelliteTracker {
     }
   }
 
-  private startSimpleTracking() {
-    this.stopSimpleTracking();
-    // Use requestAnimationFrame for 60fps smooth camera tracking instead of intervals
-    const smoothTrack = () => {
-      if (this.followingSatellite) {
-        this.updateCameraToFollowedSatellite();
-        this.trackingInterval = requestAnimationFrame(smoothTrack);
-      }
-    };
-    this.trackingInterval = requestAnimationFrame(smoothTrack);
-  }
 
   private stopSimpleTracking() {
     if (this.trackingInterval) {
@@ -905,31 +896,6 @@ export class DeckSatelliteTracker {
     console.log(`🚀 Ultra-smooth tracking active for ${satellite.name} - 60fps video-like performance`);
   }
 
-  private updateCameraToFollowedSatellite() {
-    if (!this.followingSatellite) return;
-    
-    const satellite = this.satellites.get(this.followingSatellite);
-    if (!satellite) return;
-    
-    // Use interpolated position for smoother tracking
-    const smoothPosition = this.getSmoothSatellitePosition(this.followingSatellite);
-    if (smoothPosition) {
-      // Use jumpTo at 60fps for ultra-smooth tracking - no animation conflicts
-      this.map.jumpTo({
-        center: [smoothPosition.longitude, smoothPosition.latitude]
-      });
-      
-      // Only log occasionally to avoid spam
-      if (Math.random() < 0.01) { // 1% chance per frame
-        console.log(`📍 Tracking ${satellite.name} at ${smoothPosition.latitude.toFixed(4)}, ${smoothPosition.longitude.toFixed(4)} (60fps smooth)`);
-      }
-    } else {
-      // Fallback to actual position
-      this.map.jumpTo({
-        center: [satellite.position.lng, satellite.position.lat]
-      });
-    }
-  }
 
   // Get smooth interpolated position for a satellite
   private getSmoothSatellitePosition(satelliteId: string) {
@@ -1216,7 +1182,7 @@ export class DeckSatelliteTracker {
 
 
   private updateFollowing() {
-    // Tracking is now handled by simple interval in startSimpleTracking()
+    // Tracking is now handled by ultra-smooth tracking system
   }
 
   private setupSearchFunctionality() {
@@ -1275,7 +1241,7 @@ export class DeckSatelliteTracker {
       `;
       
       resultDiv.addEventListener('click', () => {
-        this.selectSatelliteFromSearch(satellite.id);
+        this.followSatellite(satellite.id);
         resultsContainer.innerHTML = '';
         (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name;
       });
@@ -1331,21 +1297,6 @@ export class DeckSatelliteTracker {
     setInterval(updateCounts, 5000);
   }
   
-  private selectSatelliteFromSearch(satelliteId: string) {
-    const satellite = this.satellites.get(satelliteId);
-    if (satellite) {
-      this.followingSatellite = satelliteId;
-      this.map.flyTo({
-        center: [satellite.position.lng, satellite.position.lat],
-        zoom: 5, // Zoom to level 5 when selecting from search
-        duration: 2000,
-        essential: true
-      });
-      
-      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
-      this.showSatelliteInfo(satellite);
-    }
-  }
 
   getSatellites(): Map<string, SatelliteData> {
     return this.satellites;
