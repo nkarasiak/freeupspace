@@ -54,7 +54,7 @@
       }
       
       .corner-bracket.bottom-left {
-        bottom: 260px;
+        bottom: 300px;
         left: 24px;
         border-left: 2px solid #ffffff;
         border-bottom: 2px solid #ffffff;
@@ -62,7 +62,7 @@
       }
       
       .corner-bracket.bottom-right {
-        bottom: 260px;
+        bottom: 300px;
         right: 24px;
         border-right: 2px solid #ffffff;
         border-bottom: 2px solid #ffffff;
@@ -75,7 +75,7 @@
         bottom: 0;
         left: 0;
         right: 0;
-        height: 240px;
+        height: 280px;
         background: linear-gradient(
           180deg,
           rgba(0, 0, 0, 0) 0%,
@@ -98,7 +98,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 14px;
+        margin-bottom: 16px;
         gap: 12px;
       }
       
@@ -224,8 +224,8 @@
       
       /* Search Panel */
       #search-panel {
-        min-width: 340px;
-        flex: 1.1;
+        min-width: 380px;
+        flex: 1.2;
       }
       
       #satellite-search {
@@ -256,12 +256,14 @@
       }
       
       #search-results {
-        max-height: 140px;
+        max-height: 160px;
         overflow-y: auto;
         scrollbar-width: thin;
         scrollbar-color: rgba(0, 212, 255, 0.4) transparent;
         border-radius: 6px;
-        padding: 2px;
+        padding: 4px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(0, 212, 255, 0.2);
       }
       
       .search-result {
@@ -341,6 +343,175 @@
         font-weight: 400;
         color: #00d4ff;
       }
+
+      /* Satellite Filters */
+      .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .filter-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 8px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+      }
+
+      .filter-item:hover {
+        background: rgba(0, 150, 255, 0.12);
+        border-color: rgba(0, 150, 255, 0.2);
+        transform: translateX(2px);
+      }
+
+      .filter-item input[type="checkbox"] {
+        margin: 0 8px 0 0;
+        transform: scale(1.1);
+        accent-color: #00d4ff;
+      }
+
+      .filter-label {
+        flex: 1;
+        font-size: 11px;
+        font-weight: 500;
+        color: #ffffff;
+      }
+
+      .filter-count {
+        font-size: 10px;
+        font-weight: 600;
+        color: #00d4ff;
+        background: rgba(0, 212, 255, 0.15);
+        padding: 2px 6px;
+        border-radius: 3px;
+        min-width: 20px;
+        text-align: center;
+      }
+
+      .filter-item:has(input:not(:checked)) {
+        opacity: 0.5;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .filter-item:has(input:not(:checked)) .filter-label {
+        color: #999;
+      }
+
+      .filter-item:has(input:not(:checked)) .filter-count {
+        color: #666;
+        background: rgba(102, 102, 102, 0.15);
+      }
+
+      /* Cockpit Header */
+      .cockpit-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+      }
+
+      .cockpit-title {
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #00d4ff;
+        text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+      }
+
+      .cockpit-close-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #ffffff;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+      }
+
+      .cockpit-close-btn:hover {
+        background: rgba(255, 100, 100, 0.15);
+        border-color: rgba(255, 100, 100, 0.4);
+        color: #ff6464;
+        transform: scale(1.05);
+        box-shadow: 0 2px 8px rgba(255, 100, 100, 0.3);
+      }
+
+      .cockpit-close-btn:active {
+        transform: scale(0.95);
+      }
+
+      /* Show Cockpit Button (when cockpit is hidden) */
+      .show-cockpit-btn {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 16px;
+        border-radius: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(0, 0, 0, 0.9) 0%,
+          rgba(15, 15, 15, 0.95) 100%
+        );
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 2px solid rgba(0, 212, 255, 0.4);
+        color: #00d4ff;
+        font-size: 12px;
+        cursor: pointer;
+        z-index: 1500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+      }
+
+      .show-cockpit-btn:hover {
+        background: linear-gradient(
+          135deg,
+          rgba(0, 212, 255, 0.15) 0%,
+          rgba(0, 150, 255, 0.25) 100%
+        );
+        border-color: rgba(0, 212, 255, 0.7);
+        transform: translateX(-50%) translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.5);
+      }
+
+      .show-btn-text {
+        font-size: 10px;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+      }
+
+      /* Hidden cockpit state */
+      #cockpit-panel.hidden {
+        transform: translateY(100%);
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* Smooth transitions for cockpit */
+      #cockpit-panel {
+        transition: all 0.4s ease-in-out;
+      }
       
       /* Modern Scrollbar */
       ::-webkit-scrollbar {
@@ -383,8 +554,22 @@
     <!-- Main Map View -->
     <div id="map"></div>
     
+    <!-- Show Cockpit Button (appears when cockpit is hidden) -->
+    <button id="show-cockpit-btn" class="show-cockpit-btn" title="Show Cockpit (C)" style="display: none;">
+      <span>🎛️</span>
+      <span class="show-btn-text">MISSION CONTROL</span>
+    </button>
+    
     <!-- Cockpit Control Panel at Bottom -->
     <div id="cockpit-panel">
+      
+      <!-- Cockpit Header with Toggle -->
+      <div class="cockpit-header">
+        <div class="cockpit-title">MISSION CONTROL</div>
+        <button id="cockpit-toggle" class="cockpit-close-btn" title="Hide Cockpit (C)">
+          <span id="toggle-icon">✕</span>
+        </button>
+      </div>
       
       <!-- Status Bar -->
       <div id="status-bar">
@@ -435,6 +620,38 @@
           </div>
         </div>
         
+        <!-- Satellite Filters -->
+        <div class="control-section" id="filter-panel">
+          <div class="section-title">Satellite Filters</div>
+          <div class="filter-group">
+            <label class="filter-item">
+              <input type="checkbox" id="filter-scientific" checked>
+              <span class="filter-label">🔬 Scientific</span>
+              <span class="filter-count" id="count-scientific">0</span>
+            </label>
+            <label class="filter-item">
+              <input type="checkbox" id="filter-communication" checked>
+              <span class="filter-label">📡 Communication</span>
+              <span class="filter-count" id="count-communication">0</span>
+            </label>
+            <label class="filter-item">
+              <input type="checkbox" id="filter-earth-observation" checked>
+              <span class="filter-label">🛰️ Earth Observation</span>
+              <span class="filter-count" id="count-earth-observation">0</span>
+            </label>
+            <label class="filter-item">
+              <input type="checkbox" id="filter-weather" checked>
+              <span class="filter-label">🌦️ Weather</span>
+              <span class="filter-count" id="count-weather">0</span>
+            </label>
+            <label class="filter-item">
+              <input type="checkbox" id="filter-navigation" checked>
+              <span class="filter-label">🧭 Navigation</span>
+              <span class="filter-count" id="count-navigation">0</span>
+            </label>
+          </div>
+        </div>
+
         <!-- Satellite Search -->
         <div class="control-section" id="search-panel">
           <div class="section-title">Satellite Search</div>

@@ -72,6 +72,20 @@ export class DeckSatelliteTracker {
   private lodManager = new LODManager();
   private satelliteWorker: Worker | null = null;
   private orbitalInterpolator = new OrbitalInterpolator();
+  
+  // Satellite type filters
+  private enabledSatelliteTypes = new Set<string>([
+    'scientific', 'communication', 'earth-observation', 'weather', 'navigation'
+  ]);
+  
+  // Satellite size scaling
+  private satelliteSizeMultiplier = 1.0; // Default size multiplier for all satellites
+  private trackedSatelliteSizeMultiplier = 1.0; // Size multiplier for tracked satellite only
+  private readonly MIN_SIZE_MULTIPLIER = 0.1; // 10% of original size
+  private readonly MAX_SIZE_MULTIPLIER = 5.0; // 500% of original size
+  
+  // Cockpit visibility
+  private isCockpitVisible = true;
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -203,9 +217,12 @@ export class DeckSatelliteTracker {
     this.updateLayers();
     this.startTracking();
     
-    // Setup search after satellites are loaded
+    // Setup search and filters after satellites are loaded
     setTimeout(() => {
       this.setupSearchFunctionality();
+      this.setupFilterFunctionality();
+      this.setupKeyboardShortcuts();
+      this.setupCockpitToggle();
     }, 100);
   }
 
@@ -466,15 +483,17 @@ export class DeckSatelliteTracker {
     const maxSatellites = this.performanceManager.getMaxSatellites();
     const performanceSkip = this.performanceManager.getLODSkip(zoom);
     
-    // Convert satellites to LOD format
-    const satellitesForLOD: SatelliteForLOD[] = Array.from(this.satellites.values()).map(sat => ({
-      id: sat.id,
-      position: sat.position,
-      type: sat.type,
-      dimensions: sat.dimensions,
-      isFollowed: this.followingSatellite === sat.id,
-      hasImage: SATELLITE_CONFIGS_WITH_STARLINK.find(s => s.id === sat.id)?.image !== undefined
-    }));
+    // Convert satellites to LOD format and apply type filters
+    const satellitesForLOD: SatelliteForLOD[] = Array.from(this.satellites.values())
+      .filter(sat => this.enabledSatelliteTypes.has(sat.type)) // Apply type filter
+      .map(sat => ({
+        id: sat.id,
+        position: sat.position,
+        type: sat.type,
+        dimensions: sat.dimensions,
+        isFollowed: this.followingSatellite === sat.id,
+        hasImage: SATELLITE_CONFIGS_WITH_STARLINK.find(s => s.id === sat.id)?.image !== undefined
+      }));
     
     // Apply LOD filtering
     const viewport: ViewportInfo = { zoom, bounds };
@@ -493,7 +512,11 @@ export class DeckSatelliteTracker {
     const points = pointSatellites
       .map(lodSat => {
         const sat = this.satellites.get(lodSat.id)!;
-        const size = this.lodManager.getCircleSize(lodSat, zoom, 2); // Use small base size for circles
+        const baseSize = this.lodManager.getCircleSize(lodSat, zoom, 2); // Use small base size for circles
+        // Apply tracked satellite size multiplier if this is the followed satellite
+        const sizeMultiplier = this.followingSatellite === lodSat.id ? 
+          this.trackedSatelliteSizeMultiplier : this.satelliteSizeMultiplier;
+        const size = baseSize * sizeMultiplier;
         
         // Use interpolated position for smoother movement if available
         const smoothPos = this.getSmoothSatellitePosition(lodSat.id);
@@ -546,7 +569,7 @@ export class DeckSatelliteTracker {
     // Generate icon data for satellites with loaded icons
     this.satelliteIcons.forEach((_, satelliteId) => {
       const satellite = this.satellites.get(satelliteId);
-      if (satellite) {
+      if (satellite && this.enabledSatelliteTypes.has(satellite.type)) { // Apply type filter
         // Level-of-Detail (LOD) for images:
         // ISS: Always show as image (iconic satellite)
         // Others: Progressive appearance based on zoom
@@ -567,7 +590,11 @@ export class DeckSatelliteTracker {
                         this.isInBounds(satellite.position, expandedBounds);
         
         if (shouldShowIcon && isInView) {
-          const iconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId);
+          const baseIconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId);
+          // Apply tracked satellite size multiplier if this is the followed satellite
+          const sizeMultiplier = this.followingSatellite === satelliteId ? 
+            this.trackedSatelliteSizeMultiplier : this.satelliteSizeMultiplier;
+          const iconSize = baseIconSize * sizeMultiplier;
           
           // Use interpolated position for smoother icon movement
           const smoothPos = this.getSmoothSatellitePosition(satelliteId);
@@ -744,6 +771,8 @@ export class DeckSatelliteTracker {
 
   followSatellite(satelliteId: string, preserveZoom: boolean = false, explicitZoom?: number) {
     this.followingSatellite = satelliteId;
+    // Reset tracked satellite size when following a new satellite
+    this.trackedSatelliteSizeMultiplier = 1.0;
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
@@ -776,6 +805,8 @@ export class DeckSatelliteTracker {
 
   followSatelliteWithAnimation(satelliteId: string, targetZoom: number, targetPitch: number, targetBearing: number) {
     this.followingSatellite = satelliteId;
+    // Reset tracked satellite size when following a new satellite
+    this.trackedSatelliteSizeMultiplier = 1.0;
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
@@ -1175,9 +1206,12 @@ export class DeckSatelliteTracker {
         
     const matches = Array.from(this.satellites.values())
       .filter(satellite => 
-        satellite.name.toLowerCase().includes(query) ||
+        // Apply type filter first
+        this.enabledSatelliteTypes.has(satellite.type) &&
+        // Then apply search filter
+        (satellite.name.toLowerCase().includes(query) ||
         satellite.id.toLowerCase().includes(query) ||
-        satellite.type.toLowerCase().includes(query)
+        satellite.type.toLowerCase().includes(query))
       )
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 10);
@@ -1212,6 +1246,49 @@ export class DeckSatelliteTracker {
       resultsContainer.innerHTML = '<div style="padding: 8px; color: #999;">No satellites found</div>';
     }
   }
+
+  private setupFilterFunctionality() {
+    const filterCheckboxes = {
+      'scientific': document.getElementById('filter-scientific') as HTMLInputElement,
+      'communication': document.getElementById('filter-communication') as HTMLInputElement,
+      'earth-observation': document.getElementById('filter-earth-observation') as HTMLInputElement,
+      'weather': document.getElementById('filter-weather') as HTMLInputElement,
+      'navigation': document.getElementById('filter-navigation') as HTMLInputElement
+    };
+
+    const countElements = {
+      'scientific': document.getElementById('count-scientific') as HTMLElement,
+      'communication': document.getElementById('count-communication') as HTMLElement,
+      'earth-observation': document.getElementById('count-earth-observation') as HTMLElement,
+      'weather': document.getElementById('count-weather') as HTMLElement,
+      'navigation': document.getElementById('count-navigation') as HTMLElement
+    };
+
+    // Setup event listeners for filter checkboxes
+    Object.entries(filterCheckboxes).forEach(([type, checkbox]) => {
+      if (checkbox) {
+        checkbox.addEventListener('change', (e) => {
+          const enabled = (e.target as HTMLInputElement).checked;
+          this.setSatelliteTypeEnabled(type, enabled);
+          console.log(`🔧 ${type} satellites ${enabled ? 'enabled' : 'disabled'}`);
+        });
+      }
+    });
+
+    // Update counts periodically
+    const updateCounts = () => {
+      const counts = this.getSatelliteCountsByType();
+      Object.entries(countElements).forEach(([type, element]) => {
+        if (element) {
+          element.textContent = counts[type]?.toString() || '0';
+        }
+      });
+    };
+
+    // Update counts initially and every 5 seconds
+    updateCounts();
+    setInterval(updateCounts, 5000);
+  }
   
   private selectSatelliteFromSearch(satelliteId: string) {
     const satellite = this.satellites.get(satelliteId);
@@ -1231,6 +1308,220 @@ export class DeckSatelliteTracker {
 
   getSatellites(): Map<string, SatelliteData> {
     return this.satellites;
+  }
+
+  // Satellite type filtering methods
+  setSatelliteTypeEnabled(type: string, enabled: boolean) {
+    if (enabled) {
+      this.enabledSatelliteTypes.add(type);
+    } else {
+      this.enabledSatelliteTypes.delete(type);
+    }
+    this.updateLayers(); // Refresh display
+  }
+
+  isSatelliteTypeEnabled(type: string): boolean {
+    return this.enabledSatelliteTypes.has(type);
+  }
+
+  getEnabledSatelliteTypes(): Set<string> {
+    return new Set(this.enabledSatelliteTypes);
+  }
+
+  // Get satellite counts by type
+  getSatelliteCountsByType(): Record<string, number> {
+    const counts: Record<string, number> = {
+      'scientific': 0,
+      'communication': 0,
+      'earth-observation': 0,
+      'weather': 0,
+      'navigation': 0
+    };
+
+    for (const satellite of this.satellites.values()) {
+      if (counts.hasOwnProperty(satellite.type)) {
+        counts[satellite.type]++;
+      }
+    }
+
+    return counts;
+  }
+
+  // Satellite size control methods
+  increaseSatelliteSize() {
+    if (this.followingSatellite) {
+      this.trackedSatelliteSizeMultiplier = Math.min(this.trackedSatelliteSizeMultiplier * 1.25, this.MAX_SIZE_MULTIPLIER);
+      this.updateLayers();
+      const satellite = this.satellites.get(this.followingSatellite);
+      this.showMessage(`🔍 ${satellite?.name || 'Tracked satellite'} size: ${(this.trackedSatelliteSizeMultiplier * 100).toFixed(0)}%`, 'info');
+    } else {
+      this.showMessage(`🎯 Track a satellite first to resize it (search and click)`, 'warning');
+    }
+  }
+
+  decreaseSatelliteSize() {
+    if (this.followingSatellite) {
+      this.trackedSatelliteSizeMultiplier = Math.max(this.trackedSatelliteSizeMultiplier / 1.25, this.MIN_SIZE_MULTIPLIER);
+      this.updateLayers();
+      const satellite = this.satellites.get(this.followingSatellite);
+      this.showMessage(`🔍 ${satellite?.name || 'Tracked satellite'} size: ${(this.trackedSatelliteSizeMultiplier * 100).toFixed(0)}%`, 'info');
+    } else {
+      this.showMessage(`🎯 Track a satellite first to resize it (search and click)`, 'warning');
+    }
+  }
+
+  resetSatelliteSize() {
+    if (this.followingSatellite) {
+      this.trackedSatelliteSizeMultiplier = 1.0;
+      this.updateLayers();
+      const satellite = this.satellites.get(this.followingSatellite);
+      this.showMessage(`🔍 ${satellite?.name || 'Tracked satellite'} size reset to 100%`, 'info');
+    } else {
+      this.showMessage(`🎯 Track a satellite first to resize it (search and click)`, 'warning');
+    }
+  }
+
+  getSatelliteSizeMultiplier(): number {
+    return this.satelliteSizeMultiplier;
+  }
+
+  private setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+      // Only respond to shortcuts if no input elements are focused
+      if (document.activeElement?.tagName === 'INPUT') {
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowUp':
+          if (e.shiftKey) {
+            e.preventDefault();
+            this.increaseSatelliteSize();
+          }
+          break;
+        
+        case 'ArrowDown':
+          if (e.shiftKey) {
+            e.preventDefault();
+            this.decreaseSatelliteSize();
+          }
+          break;
+        
+        case 'r':
+        case 'R':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            this.resetSatelliteSize();
+          }
+          break;
+        
+        case 'c':
+        case 'C':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            this.toggleCockpit();
+          }
+          break;
+        
+        case 'h':
+        case 'H':
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            this.showKeyboardHelp();
+          }
+          break;
+      }
+    });
+
+    console.log('⌨️ Keyboard shortcuts enabled: Shift+↑/↓ to resize tracked satellite, R to reset, C to hide cockpit, H for help');
+  }
+
+  private showKeyboardHelp() {
+    const helpText = `
+🔧 TRACKED SATELLITE SIZE SHORTCUTS:
+
+Shift+↑    Increase tracked satellite size
+Shift+↓    Decrease tracked satellite size  
+R          Reset tracked satellite to normal size
+
+🎛️ INTERFACE CONTROLS:
+C          Hide/show cockpit
+H          Show this help
+
+📍 CAMERA CONTROLS:
+Ctrl+Drag  Adjust pitch angle
+Click      Select/follow satellite
++/-        Zoom map (normal behavior)
+
+📡 NOTE: First track a satellite (search & click) to resize it!
+    `;
+
+    const helpDiv = document.createElement('div');
+    helpDiv.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3000;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      font-family: 'Inter', monospace;
+      font-size: 13px;
+      white-space: pre-line;
+      border: 2px solid #00d4ff;
+      box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+      max-width: 300px;
+      text-align: left;
+    `;
+
+    helpDiv.textContent = helpText;
+    document.body.appendChild(helpDiv);
+
+    // Remove help after 5 seconds or on click
+    const removeHelp = () => helpDiv.remove();
+    setTimeout(removeHelp, 5000);
+    helpDiv.addEventListener('click', removeHelp);
+  }
+
+  private setupCockpitToggle() {
+    const toggleButton = document.getElementById('cockpit-toggle');
+    const showButton = document.getElementById('show-cockpit-btn');
+    
+    if (toggleButton) {
+      toggleButton.addEventListener('click', () => {
+        this.toggleCockpit();
+      });
+    }
+    
+    if (showButton) {
+      showButton.addEventListener('click', () => {
+        this.toggleCockpit();
+      });
+    }
+  }
+
+  toggleCockpit() {
+    this.isCockpitVisible = !this.isCockpitVisible;
+    const cockpitPanel = document.getElementById('cockpit-panel');
+    const showButton = document.getElementById('show-cockpit-btn');
+    
+    if (cockpitPanel && showButton) {
+      if (this.isCockpitVisible) {
+        cockpitPanel.classList.remove('hidden');
+        showButton.style.display = 'none';
+        this.showMessage('🎛️ Mission Control active', 'info');
+      } else {
+        cockpitPanel.classList.add('hidden');
+        showButton.style.display = 'flex';
+        this.showMessage('🎛️ Mission Control hidden - Press C to show', 'info');
+      }
+    }
+  }
+
+  isCockpitHidden(): boolean {
+    return !this.isCockpitVisible;
   }
 
   stop() {
