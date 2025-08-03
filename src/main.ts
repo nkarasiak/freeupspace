@@ -190,12 +190,14 @@ class SatelliteTracker3D {
     const toggleBtn = document.getElementById('toggle-basemap');
     const trackIssBtn = document.getElementById('track-iss');
     const showStarlinkBtn = document.getElementById('show-starlink');
+    const pauseBtn = document.getElementById('pause-updates');
     const pitchSlider = document.getElementById('pitch-slider') as HTMLInputElement;
     const pitchValue = document.getElementById('pitch-value') as HTMLSpanElement;
 
     toggleBtn?.addEventListener('click', () => this.toggleBasemap());
     trackIssBtn?.addEventListener('click', () => this.focusOnISS());
     showStarlinkBtn?.addEventListener('click', () => this.toggleStarlinkVisibility());
+    pauseBtn?.addEventListener('click', () => this.togglePauseUpdates());
     
     // Direct pitch control that bypasses Deck.gl limitation
     pitchSlider?.addEventListener('input', (e) => {
@@ -237,6 +239,14 @@ class SatelliteTracker3D {
 
   private toggleStarlinkVisibility() {
     this.satelliteTracker.toggleOrbits();
+  }
+
+  private togglePauseUpdates() {
+    const isPaused = this.satelliteTracker.togglePause();
+    const pauseBtn = document.getElementById('pause-updates');
+    if (pauseBtn) {
+      pauseBtn.textContent = isPaused ? 'Resume Updates' : 'Pause Updates';
+    }
   }
 
   private startTracking() {

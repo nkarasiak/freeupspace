@@ -47,13 +47,27 @@ export class DeckSatelliteTracker {
   private followingSatellite: string | null = null;
   private isZooming = false;
   private showOrbits = false;
+  private isPaused = false;
   private satelliteIcons: Map<string, any> = new Map();
   private onTrackingChangeCallback?: () => void;
+  
+  // Predictive tracking system using orbital paths
+  private predictiveTrackingMode = false;
+  private trackingStartTime = 0;
+  private orbitalPathPoints: Array<{time: number, lat: number, lng: number}> = [];
+  private readonly TRACKING_DURATION = 60000; // 1 minute in milliseconds
+  private readonly PATH_RESOLUTION = 120; // 120 points over 1 minute = 0.5 second intervals
   
   // Performance optimization: cache satellite records and positions
   private satelliteRecords: Map<string, any> = new Map();
   private positionCache: Map<string, {position: any, timestamp: number}> = new Map();
   private readonly POSITION_CACHE_TTL = 5000; // Cache positions for 5 seconds
+  
+  // Layer update optimization
+  private lastLayerUpdateZoom = -1;
+  private lastLayerUpdateBounds: any = null;
+  private layerUpdateThrottle = 0;
+  private readonly LAYER_UPDATE_THROTTLE = 33; // ~30fps layer updates for smooth panning
   
   // Performance monitoring
   private frameCount = 0;
@@ -171,6 +185,12 @@ export class DeckSatelliteTracker {
     this.map.on('zoom', syncView);
     this.map.on('rotate', syncView);
     this.map.on('pitch', syncView);
+    
+    // Update satellites on map move for smooth panning
+    this.map.on('move', () => {
+      // Update layers during map movement for smooth satellite panning
+      this.updateLayers(true);
+    });
     
     // Initial sync
     setTimeout(syncView, 100);
@@ -403,18 +423,49 @@ export class DeckSatelliteTracker {
 
   private generateSatelliteIconData(): any[] {
     const zoom = this.map.getZoom();
+    const bounds = this.map.getBounds();
     const iconData: any[] = [];
+
+    // Performance optimization: viewport culling for images
+    const getViewportMargin = (zoom: number): number => {
+      // Smaller margin at higher zoom for better performance
+      if (zoom <= 4) return 45; // Wide margin at zoom 4
+      if (zoom <= 6) return 30; // Medium margin
+      return 15; // Tight margin at high zoom
+    };
+
+    const margin = getViewportMargin(zoom);
+    const expandedBounds = {
+      getWest: () => bounds.getWest() - margin,
+      getEast: () => bounds.getEast() + margin,
+      getSouth: () => bounds.getSouth() - margin/2,
+      getNorth: () => bounds.getNorth() + margin/2
+    };
 
     // Generate icon data for satellites with loaded icons
     this.satelliteIcons.forEach((_, satelliteId) => {
       const satellite = this.satellites.get(satelliteId);
       if (satellite) {
-        // ISS shows as image from zoom 0
-        // Other satellites with images only show as image at zoom >= 4
-        const shouldShowIcon = satelliteId === 'iss' || zoom >= 4;
+        // Level-of-Detail (LOD) for images:
+        // ISS: Always show as image (iconic satellite)
+        // Others: Progressive appearance based on zoom
+        let shouldShowIcon = false;
+        if (satelliteId === 'iss') {
+          shouldShowIcon = true; // Always show ISS
+        } else if (zoom >= 5) {
+          shouldShowIcon = true; // Show all satellite images at zoom 5+
+        } else if (zoom >= 4) {
+          // At zoom 4, only show every 3rd satellite image to reduce load
+          const satelliteIndex = Array.from(this.satelliteIcons.keys()).indexOf(satelliteId);
+          shouldShowIcon = satelliteIndex % 3 === 0;
+        }
         
-        if (shouldShowIcon) {
-          // Different formulas: ISS uses zoom*width/3, others use zoom*width
+        // Viewport culling: skip satellites outside visible area (except followed satellite)
+        const isInView = this.followingSatellite === satelliteId || 
+                        satelliteId === 'iss' || 
+                        this.isInBounds(satellite.position, expandedBounds);
+        
+        if (shouldShowIcon && isInView) {
           const iconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId);
             
           const data = {
@@ -433,23 +484,31 @@ export class DeckSatelliteTracker {
         console.warn(`⚠️ Satellite ${satelliteId} has loaded icon but no satellite data`);
       }
     });
+    
+    console.log(`🖼️ Rendering ${iconData.length} satellite images (zoom: ${zoom.toFixed(1)})`);
     return iconData;
   }
 
 
   private getSatelliteImageSize(zoom: number, satelliteWidth: number, satelliteId: string): number {
-    // ISS: zoom*width/3 (keeps ISS manageable size)
-    // All others: zoom*width*4 (very large, highly visible)
+    // Smart size scaling with performance caps
     const effectiveZoom = Math.max(zoom, 0.5);
     
     let size: number;
     if (satelliteId === 'iss') {
-      size = (effectiveZoom * satelliteWidth) / 3;
+      // ISS: More conservative scaling
+      size = Math.min((effectiveZoom * satelliteWidth) / 3, 80); // Cap at 80px
     } else {
-      size = effectiveZoom * satelliteWidth * 4;
+      // Others: Aggressive scaling but with performance caps
+      if (zoom <= 6) {
+        size = Math.min(effectiveZoom * satelliteWidth * 2, 120); // Reduced multiplier, cap at 120px
+      } else {
+        size = Math.min(effectiveZoom * satelliteWidth * 3, 200); // Higher zoom gets bigger, cap at 200px
+      }
     }
-        // Minimum size to ensure visibility
-    return Math.max(size, 4);
+    
+    // Minimum size to ensure visibility
+    return Math.max(size, 8);
   }
 
   // private generateOrbitCircles(): OrbitCircleData[] {
@@ -501,7 +560,34 @@ export class DeckSatelliteTracker {
     return points;
   }
 
-  private updateLayers() {
+  private updateLayers(forceUpdate: boolean = false) {
+    const now = Date.now();
+    const zoom = this.map.getZoom();
+    const bounds = this.map.getBounds();
+    
+    // Light throttling for force updates to prevent excessive rendering during map panning
+    if (!forceUpdate) {
+      // Throttle background updates more aggressively
+      const zoomChanged = Math.abs(zoom - this.lastLayerUpdateZoom) > 0.3;
+      const boundsChanged = !this.lastLayerUpdateBounds || 
+        Math.abs(bounds.getCenter().lng - this.lastLayerUpdateBounds.getCenter().lng) > 0.1 ||
+        Math.abs(bounds.getCenter().lat - this.lastLayerUpdateBounds.getCenter().lat) > 0.1;
+      
+      const shouldUpdate = now - this.layerUpdateThrottle > this.LAYER_UPDATE_THROTTLE || 
+                          zoomChanged || boundsChanged;
+      
+      if (!shouldUpdate) return;
+    } else {
+      // Light throttling for force updates (30fps max)
+      if (now - this.layerUpdateThrottle < 33) return;
+    }
+    
+    this.layerUpdateThrottle = now;
+    
+    // Always update tracking variables for force updates
+    this.lastLayerUpdateZoom = zoom;
+    this.lastLayerUpdateBounds = bounds;
+
     const satellitePoints = this.generateSatellitePoints();
     const satelliteIconData = this.generateSatelliteIconData();
     // const orbitCircles = this.generateOrbitCircles();
@@ -526,27 +612,30 @@ export class DeckSatelliteTracker {
       })
     ];
 
-    // Add icon layers for satellites with images
+    // Add icon layers for satellites with images (only for visible satellites)
+    const visibleSatelliteIds = new Set(satelliteIconData.map(d => d.id));
     this.satelliteIcons.forEach((iconMapping, satelliteId) => {
-      const satelliteData = satelliteIconData.filter(d => d.id === satelliteId);
-      if (satelliteData.length > 0) {
-        layers.push(
-          new IconLayer({
-            id: `${satelliteId}-icon`,
-            data: satelliteData,
-            pickable: true,
-            iconAtlas: iconMapping.atlas,
-            iconMapping: iconMapping.mapping,
-            getIcon: (d: any) => d.icon,
-            sizeScale: 1,
-            getPosition: (d: any) => d.position,
-            getSize: (d: any) => d.size,
-            getColor: [255, 255, 255, 255],
-            onClick: (info) => {
-              this.handleSatelliteClick(info);
-            }
-          })
-        );
+      if (visibleSatelliteIds.has(satelliteId)) {
+        const satelliteData = satelliteIconData.filter(d => d.id === satelliteId);
+        if (satelliteData.length > 0) {
+          layers.push(
+            new IconLayer({
+              id: `${satelliteId}-icon`,
+              data: satelliteData,
+              pickable: true,
+              iconAtlas: iconMapping.atlas,
+              iconMapping: iconMapping.mapping,
+              getIcon: (d: any) => d.icon,
+              sizeScale: 1,
+              getPosition: (d: any) => d.position,
+              getSize: (d: any) => d.size,
+              getColor: [255, 255, 255, 255],
+              onClick: (info) => {
+                this.handleSatelliteClick(info);
+              }
+            })
+          );
+        }
       }
     });
 
@@ -609,7 +698,10 @@ export class DeckSatelliteTracker {
         essential: true
       });
       
-      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
+      // Initialize predictive tracking
+      this.initializePredictiveTracking(satelliteId);
+      
+      this.showMessage(`🎯 Following ${satellite.name} (Predictive Mode)`, 'success');
       this.updateLayers(); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -635,7 +727,10 @@ export class DeckSatelliteTracker {
         essential: true
       });
       
-      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
+      // Initialize predictive tracking
+      this.initializePredictiveTracking(satelliteId);
+      
+      this.showMessage(`🎯 Following ${satellite.name} (Predictive Mode)`, 'success');
       this.updateLayers(); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -647,6 +742,8 @@ export class DeckSatelliteTracker {
 
   stopFollowing() {
     this.followingSatellite = null;
+    this.predictiveTrackingMode = false;
+    this.orbitalPathPoints = [];
     this.updateLayers(); // Update layers to hide orbit path
     
     // Notify about tracking change
@@ -655,10 +752,113 @@ export class DeckSatelliteTracker {
     }
   }
 
+  private initializePredictiveTracking(satelliteId: string) {
+    const satelliteData = this.satellites.get(satelliteId);
+    if (!satelliteData) return;
+
+    // Calculate actual orbital path points for the next minute
+    const satrec = satelliteData.tle1 && satelliteData.tle2 ? 
+      satellite.twoline2satrec(satelliteData.tle1, satelliteData.tle2) : null;
+    if (!satrec) return;
+    
+    const startTime = Date.now();
+    const timeIntervalMs = this.TRACKING_DURATION / this.PATH_RESOLUTION; // ~500ms intervals
+    
+    this.orbitalPathPoints = [];
+    
+    // Calculate orbital path points for the next minute
+    for (let i = 0; i < this.PATH_RESOLUTION; i++) {
+      const timeOffset = i * timeIntervalMs;
+      const futureTime = new Date(startTime + timeOffset);
+      
+      const positionAndVelocity = satellite.propagate(satrec, futureTime);
+      if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
+        const gmst = satellite.gstime(futureTime);
+        const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+        
+        this.orbitalPathPoints.push({
+          time: timeOffset, // milliseconds from start
+          lat: satellite.degreesLat(positionGd.latitude),
+          lng: satellite.degreesLong(positionGd.longitude)
+        });
+      }
+    }
+    
+    if (this.orbitalPathPoints.length > 0) {
+      this.predictiveTrackingMode = true;
+      this.trackingStartTime = startTime;
+      
+      console.log(`🛰️ Orbital path tracking initialized for ${satelliteData.name}:`);
+      console.log(`   Calculated ${this.orbitalPathPoints.length} orbital path points`);
+      console.log(`   Start: ${this.orbitalPathPoints[0].lat.toFixed(4)}°, ${this.orbitalPathPoints[0].lng.toFixed(4)}°`);
+      console.log(`   End: ${this.orbitalPathPoints[this.orbitalPathPoints.length-1].lat.toFixed(4)}°, ${this.orbitalPathPoints[this.orbitalPathPoints.length-1].lng.toFixed(4)}°`);
+    }
+  }
+
+  private getPredictedPosition(): {lat: number, lng: number} | null {
+    if (!this.predictiveTrackingMode || this.orbitalPathPoints.length === 0) {
+      return null;
+    }
+    
+    const elapsedTimeMs = Date.now() - this.trackingStartTime;
+    
+    // Check if we should recalculate (after 1 minute)
+    if (elapsedTimeMs > this.TRACKING_DURATION) {
+      console.log(`🔄 Orbital path tracking expired, switching back to calculated positions`);
+      this.predictiveTrackingMode = false;
+      return null;
+    }
+    
+    // Find the two orbital path points to interpolate between
+    let beforeIndex = -1;
+    let afterIndex = -1;
+    
+    for (let i = 0; i < this.orbitalPathPoints.length - 1; i++) {
+      if (elapsedTimeMs >= this.orbitalPathPoints[i].time && 
+          elapsedTimeMs <= this.orbitalPathPoints[i + 1].time) {
+        beforeIndex = i;
+        afterIndex = i + 1;
+        break;
+      }
+    }
+    
+    // If we're past the last point, use the last calculated position
+    if (beforeIndex === -1) {
+      const lastPoint = this.orbitalPathPoints[this.orbitalPathPoints.length - 1];
+      return { lat: lastPoint.lat, lng: lastPoint.lng };
+    }
+    
+    // Interpolate between the two points
+    const before = this.orbitalPathPoints[beforeIndex];
+    const after = this.orbitalPathPoints[afterIndex];
+    const timeDelta = after.time - before.time;
+    const progress = (elapsedTimeMs - before.time) / timeDelta;
+    
+    // Handle longitude wraparound for interpolation
+    let lngDiff = after.lng - before.lng;
+    if (lngDiff > 180) lngDiff -= 360;
+    if (lngDiff < -180) lngDiff += 360;
+    
+    const interpolatedLat = before.lat + (after.lat - before.lat) * progress;
+    let interpolatedLng = before.lng + lngDiff * progress;
+    
+    // Normalize longitude
+    if (interpolatedLng > 180) interpolatedLng -= 360;
+    if (interpolatedLng < -180) interpolatedLng += 360;
+    
+    return { lat: interpolatedLat, lng: interpolatedLng };
+  }
+
   toggleOrbits() {
     this.showOrbits = !this.showOrbits;
     this.updateLayers();
     this.showMessage(this.showOrbits ? '🛰️ Orbits shown' : '🛰️ Orbits hidden', 'info');
+  }
+
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    this.showMessage(this.isPaused ? '⏸️ Satellite updates paused' : '▶️ Satellite updates resumed', 'info');
+    return this.isPaused;
   }
 
   getFollowingSatellite(): string | null {
@@ -744,13 +944,26 @@ export class DeckSatelliteTracker {
   private startTracking() {
     let lastUpdate = 0;
     let lastFullUpdate = 0;
-    const UPDATE_INTERVAL = 200; // Reduced to 5fps for better performance
+    
+    // Dynamic update intervals based on zoom level for performance
+    const getUpdateInterval = (): number => {
+      const zoom = this.map.getZoom();
+      if (zoom >= 4 && zoom <= 5) {
+        return 400; // Slower updates during zoom 4-5 transition (2.5fps)
+      } else if (zoom >= 6) {
+        return 150; // Faster updates at high zoom (6.7fps)
+      }
+      return 200; // Normal updates (5fps)
+    };
+    
     const FULL_UPDATE_INTERVAL = 2000; // Reduced to 0.5fps for background updates
     
     const updatePositions = () => {
       const now = Date.now();
       
-      if (now - lastUpdate >= UPDATE_INTERVAL) {
+      // Skip position updates if paused, but continue the animation loop
+      const UPDATE_INTERVAL = getUpdateInterval();
+      if (!this.isPaused && now - lastUpdate >= UPDATE_INTERVAL) {
         // Get current map view bounds for performance optimization
         const bounds = this.map.getBounds();
         const zoom = this.map.getZoom();
@@ -793,7 +1006,10 @@ export class DeckSatelliteTracker {
         lastUpdate = now;
       }
       
-      this.updateFollowing();
+      // Continue following satellite even when paused
+      if (!this.isPaused) {
+        this.updateFollowing();
+      }
       
       // Performance monitoring
       this.frameCount++;
@@ -822,15 +1038,28 @@ export class DeckSatelliteTracker {
     if (this.followingSatellite && !this.isZooming) {
       const satellite = this.satellites.get(this.followingSatellite);
       if (satellite) {
+        let targetPosition: {lat: number, lng: number};
+        
+        // Use predictive position if in predictive tracking mode
+        const predictedPos = this.getPredictedPosition();
+        if (predictedPos) {
+          targetPosition = predictedPos;
+          // Update satellite's displayed position for consistency
+          satellite.position = new LngLat(predictedPos.lng, predictedPos.lat);
+        } else {
+          // Fall back to calculated position
+          targetPosition = { lat: satellite.position.lat, lng: satellite.position.lng };
+        }
+        
         const currentCenter = this.map.getCenter();
         const threshold = 0.01; // Small threshold for smooth updates
-        const deltaLng = Math.abs(currentCenter.lng - satellite.position.lng);
-        const deltaLat = Math.abs(currentCenter.lat - satellite.position.lat);
+        const deltaLng = Math.abs(currentCenter.lng - targetPosition.lng);
+        const deltaLat = Math.abs(currentCenter.lat - targetPosition.lat);
         
         if (deltaLng > threshold || deltaLat > threshold) {
           // Use easeTo for smooth camera movement at 25fps
           this.map.easeTo({
-            center: [satellite.position.lng, satellite.position.lat],
+            center: [targetPosition.lng, targetPosition.lat],
             duration: 40, // 40ms for 25fps
             easing: (t) => t // Linear easing for smooth continuous movement
           });
