@@ -26,6 +26,7 @@ export interface SatelliteData {
     height: number; // meters
   };
   image?: string; // Optional image URL for satellites with custom icons
+  defaultBearing?: number; // Optional default camera bearing when tracking this satellite (0-360 degrees)
 }
 
 export interface SatellitePointData {
@@ -1142,6 +1143,7 @@ export class DeckSatelliteTracker {
         center: [cameraLng, cameraLat],
         zoom: adjustedZoom,
         pitch: 60, // Look up at satellite
+        bearing: satellite.defaultBearing ?? 0, // Use satellite's default bearing or 0
         duration: 2000,
         essential: true
       });

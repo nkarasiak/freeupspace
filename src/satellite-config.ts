@@ -12,6 +12,7 @@ export interface SatelliteConfig {
     height: number; // meters
   };
   image?: string; // Optional image URL for satellites with custom icons
+  defaultBearing?: number; // Optional default camera bearing when tracking this satellite (0-360 degrees)
 }
 
 export const SATELLITE_CONFIGS: SatelliteConfig[] = [
@@ -360,7 +361,8 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     tle1: '1 64580U 25135BE  25214.57789272  .00002177  00000+0  22209-3 0  9994',
     tle2: '2 64580  97.7488 328.2944 0003140 359.1021   1.0191 14.91676300  6352',
     dimensions: { length: 1.0, width: 0.5, height: 0.3 }, // Estimated small CubeSat dimensions
-    image: 'static/images/earthdaily_yam10.webp' // Optional: add EarthDaily logo if available
+    image: 'static/images/earthdaily_yam10.webp', // Optional: add EarthDaily logo if available
+    defaultBearing: 180 // Camera points south when tracking YAM-10
   }
 ];
 

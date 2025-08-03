@@ -392,11 +392,16 @@ class SatelliteTracker3D {
             const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
             
             console.log(`🎯 INSTANT ISS TRACK: Starting immediate ISS tracking`);
+            
+            // Get satellite data to check for default bearing
+            const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
+            const bearingToUse = satellite?.defaultBearing ?? this.urlState.getInitialBearing();
+            
             this.satelliteTracker.followSatelliteWithAnimation(
               satelliteToTrack, 
               zoomToUse,
               pitchToUse,
-              this.urlState.getInitialBearing()
+              bearingToUse
             );
             
             // Load all other satellites in background (non-blocking)
@@ -433,11 +438,16 @@ class SatelliteTracker3D {
               // Add small delay to ensure map and layers are fully ready
               setTimeout(() => {
                 console.log(`🎯 AUTO-TRACK: Executing followSatelliteWithAnimation for ${satelliteToTrack}`);
+                
+                // Get satellite data to check for default bearing
+                const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
+                const bearingToUse = satellite?.defaultBearing ?? this.urlState.getInitialBearing();
+                
                 this.satelliteTracker.followSatelliteWithAnimation(
                   satelliteToTrack, 
                   zoomToUse,
                   pitchToUse,
-                  this.urlState.getInitialBearing()
+                  bearingToUse
                 );
               }, 500);
               
