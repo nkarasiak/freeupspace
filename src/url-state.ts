@@ -42,7 +42,7 @@ export class URLState {
 
   updateURL(zoom: number, followingSatellite: string | null, pitch?: number, bearing?: number) {
     if (this.isInitializing) {
-      console.log(`🚫 Skipping URL update during initialization`);
+      // Skipping URL update during initialization
       return;
     }
     

@@ -237,6 +237,9 @@ export class DeckSatelliteTracker {
   }
 
   async initialize() {
+    // Load config satellites first (synchronously) for immediate tracking
+    this.loadConfigSatellites();
+    // Then load external satellites (asynchronously) 
     await this.loadSampleSatellites();
     this.loadSatelliteIcons();
     this.updateLayers();
@@ -257,6 +260,29 @@ export class DeckSatelliteTracker {
     // All calculations will use main thread fallback which works reliably
     console.log('📡 Using main thread satellite calculations (worker disabled for compatibility)');
     this.satelliteWorker = null;
+  }
+
+  private loadConfigSatellites() {
+    // Load satellites from config immediately (no external API calls)
+    SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
+      try {
+        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+        
+        if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+          return;
+        }
+        
+        this.satellites.set(sat.id, {
+          ...sat,
+          position: new LngLat(position.longitude, position.latitude),
+          altitude: position.altitude,
+          velocity: position.velocity
+        });
+        
+      } catch (error) {
+        // Silently skip satellites with invalid TLE data
+      }
+    });
   }
 
   private async loadSampleSatellites() {
@@ -352,7 +378,7 @@ export class DeckSatelliteTracker {
             dimensions: sat.dimensions || existingData.dimensions,
             // Keep the external TLE data as it's more current
           });
-          console.log(`🔧 Applied config override for ${sat.name} (${existingId})`);
+          // Config override applied
         } else if (!this.satellites.has(sat.id)) {
           // Add new satellite that doesn't exist in external sources
           try {
@@ -371,7 +397,6 @@ export class DeckSatelliteTracker {
             });
             
             staticLoadedCount++;
-            console.log(`➕ Added new static satellite: ${sat.name} (${sat.id})`);
             
           } catch (error) {
             console.warn(`⚠️ Error loading static satellite ${sat.id}:`, error);
@@ -379,7 +404,6 @@ export class DeckSatelliteTracker {
         }
       });
       
-      console.log(`✅ Loaded ${staticLoadedCount} additional static satellites`);
       console.log(`✅ Total loaded: ${totalLoadedCount + staticLoadedCount} satellites from all sources`);
       
     } catch (error) {
@@ -709,7 +733,7 @@ export class DeckSatelliteTracker {
     
     // Only log occasionally to avoid spam
     if (Math.random() < 0.01) { // 1% chance
-      console.log(`🎯 Rendering ${points.length} satellites (quality: ${this.performanceManager.getCurrentQuality()}, zoom: ${zoom.toFixed(1)})`);
+      // Rendering satellites
     }
     return points;
   }
@@ -1112,14 +1136,17 @@ export class DeckSatelliteTracker {
   }
 
   followSatelliteWithAnimation(satelliteId: string, targetZoom: number, targetPitch: number, targetBearing: number) {
+    console.log(`🔍 followSatelliteWithAnimation called for: ${satelliteId}`);
     this.followingSatellite = satelliteId;
     // Reset tracked satellite size when following a new satellite
     this.trackedSatelliteSizeMultiplier = 1.0;
     // Enable "show tracked satellite only" by default when tracking starts
     this.showTrackedSatelliteOnly = true;
     const satellite = this.satellites.get(satelliteId);
+    console.log(`🔍 Satellite found: ${satellite ? 'YES' : 'NO'}, total satellites: ${this.satellites.size}`);
     
     if (satellite) {
+      console.log(`🔍 INSIDE IF BLOCK - about to start animation`);
       console.log(`🛰️ Flying to ${satellite.name} with animation - zoom: ${targetZoom}, pitch: ${targetPitch}°, bearing: ${targetBearing}°`);
       console.log('📏 Current zoom before flyToAnimation:', this.map.getZoom());
       
@@ -1158,7 +1185,7 @@ export class DeckSatelliteTracker {
       
       console.log(`📹 Animation: Positioning camera to view satellite at ${satelliteAltitudeKm}km altitude`);
       
-      // Use map.flyTo directly for consistent behavior
+      // Use map.flyTo with proper completion callback
       this.map.flyTo({
         center: [cameraLng, cameraLat],
         zoom: adjustedZoom,
@@ -1168,21 +1195,19 @@ export class DeckSatelliteTracker {
         essential: true
       });
       
-      // Verify zoom after flyTo starts
-      setTimeout(() => {
-        console.log('📏 Zoom after flyToAnimation starts:', this.map.getZoom());
-      }, 100);
-      
-      // Start smooth tracking after delay
-      setTimeout(() => {
-        // Camera animation complete, ultra-smooth tracking active
+      // Listen for flyTo completion
+      const onFlyToComplete = () => {
+        this.map.off('moveend', onFlyToComplete);
         console.log('🎬 Camera positioned with animation, ultra-smooth tracking active');
+        this.startUltraSmoothTracking(satellite);
         
         // Notify about tracking change AFTER animation completes
         if (this.onTrackingChangeCallback) {
           this.onTrackingChangeCallback();
         }
-      });
+      };
+      
+      this.map.on('moveend', onFlyToComplete);
       
       this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
       this.updateLayers(true); // Update layers to show orbit path if enabled
@@ -1371,16 +1396,13 @@ export class DeckSatelliteTracker {
     const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
     
     // Skip followed satellite - smooth tracking handles it completely
-    // The ultra-smooth tracking system will update the followed satellite at 120fps
-    if (this.followingSatellite && this.smoothTracker.isTracking()) {
-      console.log('🎯 Skipping followed satellite in background updates - smooth tracking active');
-    }
+    // The ultra-smooth tracking system will update the followed satellite at 30fps
     
     for (const [id, sat] of this.satellites) {
       // Skip followed satellite since we updated it above
       const shouldUpdate = (this.followingSatellite !== id) && (
                           isFullUpdate ||
-                          (zoom > 3 && this.isInBounds(sat.position, bounds)));
+                          (zoom >= 3 && this.isInBounds(sat.position, bounds)));
       
       if (isFullUpdate && this.followingSatellite !== id) {
         const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 30;
@@ -1403,7 +1425,7 @@ export class DeckSatelliteTracker {
     this.updateLayers();
     // Only log occasionally to avoid spam
     if (Math.random() < 0.02) { // 2% chance
-      console.log(`🛰️ Updated ${updatedCount} satellites (main thread fallback)`);
+      // Satellites updated
     }
   }
 
@@ -1720,7 +1742,7 @@ export class DeckSatelliteTracker {
       }
     });
 
-    console.log('⌨️ Keyboard shortcuts enabled: Shift+↑/↓ to resize tracked satellite, R to reset, C to hide cockpit, H for help');
+    // Keyboard shortcuts enabled
   }
 
   private showKeyboardHelp() {

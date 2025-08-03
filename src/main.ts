@@ -10,6 +10,7 @@ class SatelliteTracker3D {
   private urlState = new URLState();
   private initialZoom!: number;
   private isInitializing = true;
+  private lastURLState = { zoom: 0, pitch: 0, bearing: 0, satellite: '' }; // Track URL-relevant changes
 
   constructor() {
     this.initializeMap();
@@ -238,10 +239,10 @@ class SatelliteTracker3D {
   }
 
   private focusOnISS() {
-    const iss = this.satelliteTracker.getSatellites().get('iss');
+    const iss = this.satelliteTracker.getSatellites().get('iss-zarya-25544');
     if (iss) {
       // Use the follow functionality instead of just flying to it
-      this.satelliteTracker.followSatellite('iss');
+      this.satelliteTracker.followSatellite('iss-zarya-25544');
     }
   }
 
@@ -278,45 +279,47 @@ class SatelliteTracker3D {
     this.map.on('load', () => {
       // Wait a bit for the basemap to be added, then initialize satellites
       setTimeout(async () => {
-        await this.satelliteTracker.initialize();
-        
         // Restore satellite tracking from URL if specified, otherwise default to ISS
-        const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss';
+        const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya-25544';
         const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
         
+        console.log(`🔍 AUTO-TRACK INIT: satelliteToTrack='${satelliteToTrack}', isDefaultISS=${isDefaultISS}`);
+        
+        // Initialize satellite tracker
+        await this.satelliteTracker.initialize();
+        
+        // Try to track satellite from URL (config satellites are now loaded)
         if (satelliteToTrack) {
-          // Give a bit more time for satellites to be loaded
-          setTimeout(() => {
+          const satellites = this.satelliteTracker.getSatellites();
+          console.log(`🔍 AUTO-TRACK: Looking for '${satelliteToTrack}', found ${satellites.size} satellites, has target: ${satellites.has(satelliteToTrack)}`);
+          if (satellites.has(satelliteToTrack)) {
+            const zoomToUse = isDefaultISS ? 5 : this.initialZoom;
+            const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
             
-            // Check if satellite exists before trying to follow it
-            const satellites = this.satelliteTracker.getSatellites();
-            if (satellites.has(satelliteToTrack)) {
-              // Use zoom 5 and pitch 60 for default ISS view, otherwise use URL values
-              const zoomToUse = isDefaultISS ? 5 : this.initialZoom;
-              const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
-              
-              console.log(`🎯 Tracking ${satelliteToTrack} with zoom: ${zoomToUse}, pitch: ${pitchToUse} (isDefaultISS: ${isDefaultISS})`);
-              
-              // Use zoom, pitch, and bearing from URL for smooth flyTo animation
+            console.log(`🎯 AUTO-TRACK: Starting tracking for ${satelliteToTrack}`);
+            // Add small delay to ensure map and layers are fully ready
+            setTimeout(() => {
+              console.log(`🎯 AUTO-TRACK: Executing followSatelliteWithAnimation for ${satelliteToTrack}`);
               this.satelliteTracker.followSatelliteWithAnimation(
                 satelliteToTrack, 
                 zoomToUse,
                 pitchToUse,
                 this.urlState.getInitialBearing()
               );
-            } else {
-              console.warn(`⚠️ Satellite not found: ${satelliteToTrack}. Available satellites:`, Array.from(satellites.keys()));
-              // Remove invalid satellite from URL
-              this.urlState.removeInvalidSatellite();
-            }
+            }, 500);
             
-            // End initialization phase after satellite tracking is set up (or attempted)
             setTimeout(() => {
               this.urlState.setInitializing(false);
-              this.isInitializing = false; // Allow URL updates after animation completes
-              console.log(`✅ Initialization complete - URL updates enabled`);
-            }, 4000); // Wait longer for flyTo animation to complete (3s + buffer)
-          }, 1000);
+              this.isInitializing = false;
+            }, 4000);
+          } else {
+            console.log(`❌ AUTO-TRACK: Satellite '${satelliteToTrack}' not found in ${satellites.size} loaded satellites`);
+            this.urlState.removeInvalidSatellite();
+            setTimeout(() => {
+              this.urlState.setInitializing(false);
+              this.isInitializing = false;
+            }, 1000);
+          }
         }
         
         this.updateUI();
@@ -328,16 +331,28 @@ class SatelliteTracker3D {
   private updateURL() {
     // Skip URL updates during initialization to prevent premature updates
     if (this.isInitializing) {
-      console.log(`📍 Skipping URL update during initialization`);
+      // Skipping URL update during initialization
       return;
     }
     
-    const zoom = this.map.getZoom();
-    const pitch = this.map.getPitch();
-    const bearing = this.map.getBearing();
-    const followingSatellite = this.satelliteTracker.getFollowingSatellite();
+    const zoom = Math.round(this.map.getZoom() * 10) / 10; // Round to 1 decimal
+    const pitch = Math.round(this.map.getPitch());
+    const bearing = Math.round(this.map.getBearing());
+    const followingSatellite = this.satelliteTracker.getFollowingSatellite() || '';
     
-    console.log(`📍 Updating URL - zoom: ${zoom.toFixed(2)}, satellite: ${followingSatellite}`);
+    // Only update URL if values that are actually stored in URL have changed
+    const hasChanged = 
+      Math.abs(zoom - this.lastURLState.zoom) > 0.1 ||
+      Math.abs(pitch - this.lastURLState.pitch) > 1 ||
+      Math.abs(bearing - this.lastURLState.bearing) > 1 ||
+      followingSatellite !== this.lastURLState.satellite;
+    
+    if (!hasChanged) {
+      return; // No URL-relevant changes
+    }
+    
+    // Update stored state
+    this.lastURLState = { zoom, pitch, bearing, satellite: followingSatellite };
     
     this.urlState.updateURL(zoom, followingSatellite, pitch, bearing);
   }

@@ -40,7 +40,7 @@ export class SatelliteTracker {
   private loadSampleSatellites() {
     const sampleSatellites = [
       {
-        id: 'iss',
+        id: 'iss-zarya-25544',
         name: 'International Space Station',
         type: 'scientific' as const,
         tle1: '1 25544U 98067A   25214.09653981  .00010888  00000+0  19653-3 0  9996',
@@ -932,7 +932,7 @@ export class SatelliteTracker {
       id: 'satellites-main',
       type: 'circle',
       source: 'satellites',
-      filter: ['all', ['!=', ['get', 'id'], 'iss'], ['!=', ['get', 'type'], 'communication'], ['!=', ['get', 'type'], 'earth-observation']],
+      filter: ['all', ['!=', ['get', 'id'], 'iss-zarya-25544'], ['!=', ['get', 'type'], 'communication'], ['!=', ['get', 'type'], 'earth-observation']],
       paint: {
         'circle-radius': [
           'interpolate',
@@ -1003,7 +1003,7 @@ export class SatelliteTracker {
       id: 'satellites-iss-icon',
       type: 'symbol',
       source: 'satellites',
-      filter: ['==', ['get', 'id'], 'iss'],
+      filter: ['==', ['get', 'id'], 'iss-zarya-25544'],
       layout: {
         'icon-image': 'iss-icon',
         'icon-size': 1.0, // Will be updated dynamically when image loads

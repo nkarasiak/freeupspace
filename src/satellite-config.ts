@@ -17,7 +17,7 @@ export interface SatelliteConfig {
 export const SATELLITE_CONFIGS: SatelliteConfig[] = [
   // Scientific satellites
   {
-    id: 'iss',
+    id: 'iss-zarya-25544',
     name: 'International Space Station',
     shortname: 'ISS',
     type: 'scientific',

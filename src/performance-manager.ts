@@ -92,7 +92,7 @@ export class PerformanceManager {
       this.adaptiveQuality = 'ultra';
     }
     
-    console.log(`🎯 Performance: ${avgFPS.toFixed(1)}fps avg, ${minFPS.toFixed(1)}fps min → Quality: ${this.adaptiveQuality}`);
+    // Performance monitoring
   }
 
   getQualitySettings() {
