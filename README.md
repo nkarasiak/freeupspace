@@ -38,7 +38,7 @@ This project is automatically deployed to GitHub Pages when changes are pushed t
 3. Set Source to "GitHub Actions"
 4. The workflow will automatically deploy on every push to main
 
-The site will be available at: `https://[username].github.io/freeupspace/`
+The site will be available at: `https://www.freeupthe.re`
 
 ## Satellite Data
 
