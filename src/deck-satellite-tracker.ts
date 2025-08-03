@@ -1218,12 +1218,10 @@ export class DeckSatelliteTracker {
         // Apply type filter first
         if (!this.enabledSatelliteTypes.has(satellite.type)) return false;
         
-        // Apply tracked satellite only filter
-        if (this.showTrackedSatelliteOnly && this.followingSatellite && satellite.id !== this.followingSatellite) {
-          return false;
-        }
+        // Search should always show all satellites to allow switching between them
+        // Do NOT apply tracked satellite only filter to search results
         
-        // Then apply search filter
+        // Apply search filter
         return (satellite.name.toLowerCase().includes(query) ||
                 satellite.id.toLowerCase().includes(query) ||
                 satellite.type.toLowerCase().includes(query));
