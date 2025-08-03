@@ -3,7 +3,7 @@ import checker from 'vite-plugin-checker'
 import { visualizer } from 'rollup-plugin-visualizer'
 
 export default defineConfig({
-  base: process.env.NODE_ENV === 'production' ? '/freeupspace/' : '/',
+  base: process.env.NODE_ENV === 'production' ? '/' : '/',
   publicDir: 'public',
   plugins: [
     checker({
