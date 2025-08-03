@@ -87,6 +87,9 @@ export class DeckSatelliteTracker {
     'scientific', 'communication', 'earth-observation', 'weather', 'navigation'
   ]);
   
+  // Satellite visibility filter - when tracking, show only tracked satellite
+  private showTrackedSatelliteOnly = false;
+  
   // Satellite size scaling
   private satelliteSizeMultiplier = 1.0; // Default size multiplier for all satellites
   private trackedSatelliteSizeMultiplier = 1.0; // Size multiplier for tracked satellite only
@@ -510,9 +513,19 @@ export class DeckSatelliteTracker {
     const maxSatellites = this.performanceManager.getMaxSatellites();
     const performanceSkip = this.performanceManager.getLODSkip(zoom);
     
-    // Convert satellites to LOD format and apply type filters
+    // Convert satellites to LOD format and apply filters
     const satellitesForLOD: SatelliteForLOD[] = Array.from(this.satellites.values())
-      .filter(sat => this.enabledSatelliteTypes.has(sat.type)) // Apply type filter
+      .filter(sat => {
+        // Apply type filter
+        if (!this.enabledSatelliteTypes.has(sat.type)) return false;
+        
+        // Apply tracked satellite only filter
+        if (this.showTrackedSatelliteOnly && this.followingSatellite) {
+          return sat.id === this.followingSatellite;
+        }
+        
+        return true;
+      }) // Apply filters
       .map(sat => ({
         id: sat.id,
         position: sat.position,
@@ -609,6 +622,10 @@ export class DeckSatelliteTracker {
     this.satelliteIcons.forEach((_, satelliteId) => {
       const satellite = this.satellites.get(satelliteId);
       if (satellite && this.enabledSatelliteTypes.has(satellite.type)) { // Apply type filter
+        // Apply tracked satellite only filter
+        if (this.showTrackedSatelliteOnly && this.followingSatellite && satelliteId !== this.followingSatellite) {
+          return; // Skip this satellite
+        }
         // Level-of-Detail (LOD) for images:
         // ISS: Always show as image (iconic satellite)
         // Others: Progressive appearance based on zoom
@@ -829,6 +846,8 @@ export class DeckSatelliteTracker {
     this.followingSatellite = satelliteId;
     // Reset tracked satellite size when following a new satellite
     this.trackedSatelliteSizeMultiplier = 1.0;
+    // Enable "show tracked satellite only" by default when tracking starts
+    this.showTrackedSatelliteOnly = true;
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
@@ -869,6 +888,8 @@ export class DeckSatelliteTracker {
     this.followingSatellite = satelliteId;
     // Reset tracked satellite size when following a new satellite
     this.trackedSatelliteSizeMultiplier = 1.0;
+    // Enable "show tracked satellite only" by default when tracking starts
+    this.showTrackedSatelliteOnly = true;
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
@@ -900,6 +921,8 @@ export class DeckSatelliteTracker {
 
   stopFollowing() {
     this.followingSatellite = null;
+    // Disable "show tracked satellite only" when stopping tracking
+    this.showTrackedSatelliteOnly = false;
     
     // Stop ultra-smooth tracking system
     this.smoothTracker.stopTracking();
@@ -1191,14 +1214,20 @@ export class DeckSatelliteTracker {
     if (query.length < 2) return;
         
     const matches = Array.from(this.satellites.values())
-      .filter(satellite => 
+      .filter(satellite => {
         // Apply type filter first
-        this.enabledSatelliteTypes.has(satellite.type) &&
+        if (!this.enabledSatelliteTypes.has(satellite.type)) return false;
+        
+        // Apply tracked satellite only filter
+        if (this.showTrackedSatelliteOnly && this.followingSatellite && satellite.id !== this.followingSatellite) {
+          return false;
+        }
+        
         // Then apply search filter
-        (satellite.name.toLowerCase().includes(query) ||
-        satellite.id.toLowerCase().includes(query) ||
-        satellite.type.toLowerCase().includes(query))
-      )
+        return (satellite.name.toLowerCase().includes(query) ||
+                satellite.id.toLowerCase().includes(query) ||
+                satellite.type.toLowerCase().includes(query));
+      })
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 10);
     
@@ -1297,6 +1326,16 @@ export class DeckSatelliteTracker {
 
   getEnabledSatelliteTypes(): Set<string> {
     return new Set(this.enabledSatelliteTypes);
+  }
+  
+  // Tracked satellite only filter methods
+  setShowTrackedSatelliteOnly(enabled: boolean) {
+    this.showTrackedSatelliteOnly = enabled;
+    this.updateLayers(); // Refresh display
+  }
+  
+  getShowTrackedSatelliteOnly(): boolean {
+    return this.showTrackedSatelliteOnly;
   }
 
   // Get satellite counts by type

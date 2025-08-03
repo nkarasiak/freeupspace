@@ -192,6 +192,7 @@ class SatelliteTracker3D {
     const trackIssBtn = document.getElementById('track-iss');
     const showStarlinkBtn = document.getElementById('show-starlink');
     const pauseBtn = document.getElementById('pause-updates');
+    const satelliteTrackedOnlyBtn = document.getElementById('satellite-tracked-only');
     const pitchSlider = document.getElementById('pitch-slider') as HTMLInputElement;
     const pitchValue = document.getElementById('pitch-value') as HTMLSpanElement;
 
@@ -199,6 +200,7 @@ class SatelliteTracker3D {
     trackIssBtn?.addEventListener('click', () => this.focusOnISS());
     showStarlinkBtn?.addEventListener('click', () => this.toggleStarlinkVisibility());
     pauseBtn?.addEventListener('click', () => this.togglePauseUpdates());
+    satelliteTrackedOnlyBtn?.addEventListener('click', () => this.toggleSatelliteTrackedOnly());
     
     // Direct pitch control that bypasses Deck.gl limitation
     pitchSlider?.addEventListener('input', (e) => {
@@ -248,6 +250,23 @@ class SatelliteTracker3D {
     if (pauseBtn) {
       pauseBtn.textContent = isPaused ? 'Resume Updates' : 'Pause Updates';
     }
+  }
+
+  private toggleSatelliteTrackedOnly() {
+    const isTracking = this.satelliteTracker.getFollowingSatellite() !== null;
+    
+    // Don't allow toggling if not tracking any satellite
+    if (!isTracking) {
+      console.log('🎯 No satellite being tracked - cannot toggle tracked only mode');
+      return;
+    }
+    
+    const currentState = this.satelliteTracker.getShowTrackedSatelliteOnly();
+    const newState = !currentState;
+    this.satelliteTracker.setShowTrackedSatelliteOnly(newState);
+    
+    // Update button appearance - this will be handled by updateSatelliteTrackedOnlyButton
+    this.updateSatelliteTrackedOnlyButton();
   }
 
   private startTracking() {
@@ -431,6 +450,38 @@ class SatelliteTracker3D {
         trackingStatusElement.textContent = 'FREE VIEW';
         trackingStatusElement.style.color = '#ffffff';
       }
+    }
+    
+    // Update satellite tracked only button state
+    this.updateSatelliteTrackedOnlyButton();
+  }
+
+  private updateSatelliteTrackedOnlyButton() {
+    const btn = document.getElementById('satellite-tracked-only');
+    if (!btn) return;
+    
+    const isTrackedOnly = this.satelliteTracker.getShowTrackedSatelliteOnly();
+    const isTracking = this.satelliteTracker.getFollowingSatellite() !== null;
+    
+    if (isTrackedOnly && isTracking) {
+      btn.textContent = '🎯 Show all satellites';
+      btn.style.background = 'rgba(0, 255, 136, 0.15)';
+      btn.style.borderColor = 'rgba(0, 255, 136, 0.3)';
+    } else {
+      btn.textContent = '🎯 Satellite tracked only';
+      btn.style.background = '';
+      btn.style.borderColor = '';
+    }
+    
+    // Disable button when not tracking any satellite
+    if (!isTracking) {
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      btn.title = 'Track a satellite first to use this feature';
+    } else {
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.title = isTrackedOnly ? 'Show all satellites' : 'Hide all satellites except tracked one';
     }
   }
 }
