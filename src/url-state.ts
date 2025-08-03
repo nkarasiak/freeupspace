@@ -26,7 +26,8 @@ export class URLState {
 
   getInitialSatellite(): string | null {
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('satellite');
+    // Support both 'satellite' and 'name' parameters for satellite ID
+    return urlParams.get('satellite') || urlParams.get('name');
   }
 
   getInitialCoordinates(): [number, number] | null {

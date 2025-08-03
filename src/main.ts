@@ -2,6 +2,7 @@ import { Map as MapLibreMap, AttributionControl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { DeckSatelliteTracker } from './deck-satellite-tracker';
 import { URLState } from './url-state';
+import { CommandPalette } from './command-palette';
 
 class SatelliteTracker3D {
   private map!: MapLibreMap;
@@ -9,6 +10,7 @@ class SatelliteTracker3D {
   private isDayMode = true;
   private isGlobeMode = true; // Start with globe projection
   private urlState = new URLState();
+  private commandPalette!: CommandPalette;
   private initialZoom!: number;
   private isInitializing = true;
   private lastURLState = { zoom: 0, pitch: 0, bearing: 0, satellite: '' }; // Track URL-relevant changes
@@ -19,6 +21,7 @@ class SatelliteTracker3D {
     this.satelliteTracker.setOnTrackingChangeCallback(() => this.updateURL());
     this.setupEventListeners();
     this.setupURLSharing();
+    this.setupCommandPalette();
     this.startTracking();
   }
 
@@ -374,24 +377,26 @@ class SatelliteTracker3D {
       
       console.log(`🔍 AUTO-TRACK INIT: satelliteToTrack='${satelliteToTrack}', isDefaultISS=${isDefaultISS}`);
       
-      // If tracking ISS (default case), load it immediately without waiting for API
-      if (satelliteToTrack === 'iss-zarya-25544') {
-        console.log('🚀 INSTANT ISS MODE: Loading ISS immediately...');
+      // Check if satellite is in config for instant loading
+      const configSatellite = this.satelliteTracker.getSatelliteConfigs().find(sat => sat.id === satelliteToTrack);
+      
+      if (configSatellite) {
+        console.log(`🚀 INSTANT CONFIG MODE: Loading ${satelliteToTrack} immediately...`);
         
-        // Load ISS immediately (no API dependency)
-        const issLoaded = this.satelliteTracker.loadISSOnly();
+        // Load config satellite immediately (no API dependency)
+        const satelliteLoaded = this.satelliteTracker.loadConfigSatelliteById(satelliteToTrack);
         
-        if (issLoaded) {
-          // Start layers and background updates immediately for ISS
+        if (satelliteLoaded) {
+          // Start layers and background updates immediately
           this.satelliteTracker.updateLayers();
           this.satelliteTracker.startBackgroundUpdates();
           
-          // Start ISS tracking immediately
+          // Start satellite tracking immediately
           setTimeout(() => {
             const zoomToUse = isDefaultISS ? 5 : this.initialZoom;
             const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
             
-            console.log(`🎯 INSTANT ISS TRACK: Starting immediate ISS tracking`);
+            console.log(`🎯 INSTANT CONFIG TRACK: Starting immediate tracking for ${satelliteToTrack}`);
             
             // Get satellite data to check for default bearing
             const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
@@ -411,7 +416,7 @@ class SatelliteTracker3D {
               console.log('✅ All satellites loaded');
             }, 1000);
             
-          }, 100); // Very short delay for ISS tracking
+          }, 100); // Very short delay for satellite tracking
           
           setTimeout(() => {
             this.urlState.setInitializing(false);
@@ -503,6 +508,33 @@ class SatelliteTracker3D {
 
   private setupURLSharing() {
     this.urlState.setupURLSharing(this.map, () => this.updateURL());
+  }
+
+  private setupCommandPalette() {
+    this.commandPalette = new CommandPalette();
+    
+    // Set up command palette callbacks
+    this.commandPalette.setCallbacks({
+      onTrackSatellite: (satelliteId: string) => {
+        console.log(`🎯 Command palette: Tracking satellite ${satelliteId}`);
+        this.satelliteTracker.followSatellite(satelliteId);
+      },
+      onToggleNight: () => {
+        console.log('🌙 Command palette: Switching to night mode');
+        if (this.isDayMode) {
+          this.toggleBasemap();
+        }
+      },
+      onToggleDay: () => {
+        console.log('☀️ Command palette: Switching to day mode');
+        if (!this.isDayMode) {
+          this.toggleBasemap();
+        }
+      },
+      getSatellites: () => {
+        return this.satelliteTracker.getSatellites();
+      }
+    });
   }
 
   private applyPitchOverride() {

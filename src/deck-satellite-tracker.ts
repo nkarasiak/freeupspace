@@ -240,32 +240,38 @@ export class DeckSatelliteTracker {
   // Load only ISS immediately for instant tracking
   loadISSOnly() {
     console.log('🚀 Loading ISS immediately for instant tracking...');
-    const issConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === 'iss-zarya-25544');
+    return this.loadConfigSatelliteById('iss-zarya-25544');
+  }
+
+  // Load any satellite from config immediately for instant tracking
+  loadConfigSatelliteById(satelliteId: string) {
+    console.log(`🚀 Loading satellite ${satelliteId} immediately for instant tracking...`);
+    const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === satelliteId);
     
-    if (issConfig) {
+    if (satelliteConfig) {
       try {
-        const position = this.calculateSatellitePosition(issConfig.tle1, issConfig.tle2, issConfig.id);
+        const position = this.calculateSatellitePosition(satelliteConfig.tle1, satelliteConfig.tle2, satelliteConfig.id);
         
         if (!isNaN(position.longitude) && !isNaN(position.latitude) && !isNaN(position.altitude)) {
-          this.satellites.set(issConfig.id, {
-            ...issConfig,
+          this.satellites.set(satelliteConfig.id, {
+            ...satelliteConfig,
             position: new LngLat(position.longitude, position.latitude),
             altitude: position.altitude,
             velocity: position.velocity
           });
           
-          // Load ISS icon immediately
-          if (issConfig.image) {
-            this.loadSatelliteIcon(issConfig.id, issConfig.image);
+          // Load satellite icon immediately
+          if (satelliteConfig.image) {
+            this.loadSatelliteIcon(satelliteConfig.id, satelliteConfig.image);
           } else {
-            this.createDotIcon(issConfig.id);
+            this.createDotIcon(satelliteConfig.id);
           }
           
-          console.log('✅ ISS loaded and ready for tracking');
+          console.log(`✅ ${satelliteId} loaded and ready for tracking`);
           return true;
         }
       } catch (error) {
-        console.warn('⚠️ Failed to load ISS immediately:', error);
+        console.warn(`⚠️ Failed to load ${satelliteId} immediately:`, error);
       }
     }
     return false;
@@ -1642,6 +1648,10 @@ export class DeckSatelliteTracker {
 
   getSatellites(): Map<string, SatelliteData> {
     return this.satellites;
+  }
+
+  getSatelliteConfigs() {
+    return SATELLITE_CONFIGS_WITH_STARLINK;
   }
 
   // Satellite type filtering methods
