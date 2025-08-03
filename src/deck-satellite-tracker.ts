@@ -5,6 +5,7 @@ import * as satellite from 'satellite.js';
 import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
 import { PerformanceManager } from './performance-manager';
 import { LODManager, ViewportInfo, SatelliteForLOD } from './lod-manager';
+import { OrbitalInterpolator, SatellitePosition } from './orbital-interpolator';
 
 export interface SatelliteData {
   id: string;
@@ -58,7 +59,7 @@ export class DeckSatelliteTracker {
   // Performance optimization: cache satellite records and positions
   private satelliteRecords: Map<string, any> = new Map();
   private positionCache: Map<string, {position: any, timestamp: number}> = new Map();
-  private readonly POSITION_CACHE_TTL = 5000; // Cache positions for 5 seconds
+  private readonly POSITION_CACHE_TTL = 2000; // Cache positions for 2 seconds (better responsiveness)
   
   // Layer update optimization
   private lastLayerUpdateZoom = -1;
@@ -70,6 +71,7 @@ export class DeckSatelliteTracker {
   private performanceManager = new PerformanceManager();
   private lodManager = new LODManager();
   private satelliteWorker: Worker | null = null;
+  private orbitalInterpolator = new OrbitalInterpolator();
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -209,10 +211,10 @@ export class DeckSatelliteTracker {
 
   private initializeWorker() {
     try {
-      // Create satellite calculation worker
+      // Create satellite calculation worker - using importScripts for browser compatibility
       const workerBlob = new Blob([`
         // Web Worker for satellite position calculations
-        import * as satellite from 'satellite.js';
+        importScripts('https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js');
 
         const satelliteRecords = new Map();
         let calculationQueue = [];
@@ -263,16 +265,16 @@ export class DeckSatelliteTracker {
             const cacheKey = \`\${tle1}-\${tle2}\`;
             let satrec = satelliteRecords.get(cacheKey);
             if (!satrec) {
-              satrec = satellite.twoline2satrec(tle1, tle2);
+              satrec = self.satellite.twoline2satrec(tle1, tle2);
               satelliteRecords.set(cacheKey, satrec);
             }
             
             const currentTime = new Date(timestamp);
-            const positionAndVelocity = satellite.propagate(satrec, currentTime);
+            const positionAndVelocity = self.satellite.propagate(satrec, currentTime);
             
             if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
-              const gmst = satellite.gstime(currentTime);
-              const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+              const gmst = self.satellite.gstime(currentTime);
+              const positionGd = self.satellite.eciToGeodetic(positionAndVelocity.position, gmst);
               
               const velocity = positionAndVelocity.velocity && typeof positionAndVelocity.velocity !== 'boolean' ? 
                 Math.sqrt(
@@ -283,8 +285,8 @@ export class DeckSatelliteTracker {
               
               return {
                 id,
-                longitude: satellite.degreesLong(positionGd.longitude),
-                latitude: satellite.degreesLat(positionGd.latitude),
+                longitude: self.satellite.degreesLong(positionGd.longitude),
+                latitude: self.satellite.degreesLat(positionGd.latitude),
                 altitude: positionGd.height,
                 velocity,
                 timestamp
@@ -388,8 +390,8 @@ export class DeckSatelliteTracker {
   private calculateSatellitePosition(tle1: string, tle2: string, satelliteId?: string) {
     const now = Date.now();
     
-    // Check cache first if satellite ID is provided
-    if (satelliteId) {
+    // Check cache first if satellite ID is provided, but SKIP cache for followed satellite
+    if (satelliteId && this.followingSatellite !== satelliteId) {
       const cached = this.positionCache.get(satelliteId);
       if (cached && now - cached.timestamp < this.POSITION_CACHE_TTL) {
         return cached.position;
@@ -426,6 +428,16 @@ export class DeckSatelliteTracker {
       // Cache the result if satellite ID is provided
       if (satelliteId) {
         this.positionCache.set(satelliteId, { position: result, timestamp: now });
+        
+        // Add to interpolator for smooth movement
+        const satellitePos: SatellitePosition = {
+          longitude: result.longitude,
+          latitude: result.latitude,
+          altitude: result.altitude,
+          velocity: result.velocity,
+          timestamp: now
+        };
+        this.orbitalInterpolator.addPosition(satelliteId, satellitePos);
       }
       
       return result;
@@ -482,13 +494,21 @@ export class DeckSatelliteTracker {
       .map(lodSat => {
         const sat = this.satellites.get(lodSat.id)!;
         const size = this.lodManager.getCircleSize(lodSat, zoom, 2); // Use small base size for circles
+        
+        // Use interpolated position for smoother movement if available
+        const smoothPos = this.getSmoothSatellitePosition(lodSat.id);
+        const lng = smoothPos ? smoothPos.longitude : sat.position.lng;
+        const lat = smoothPos ? smoothPos.latitude : sat.position.lat;
+        const altitude = smoothPos ? smoothPos.altitude : sat.altitude;
+        const velocity = smoothPos ? smoothPos.velocity : sat.velocity;
+        
         return {
-          position: [sat.position.lng, sat.position.lat, 0] as [number, number, number],
+          position: [lng, lat, 0] as [number, number, number],
           id: sat.id,
           name: sat.name,
           type: sat.type,
-          altitude: sat.altitude,
-          velocity: sat.velocity,
+          altitude: altitude,
+          velocity: velocity,
           length: sat.dimensions.length,
           color: this.getColorForType(sat.type),
           size
@@ -548,16 +568,23 @@ export class DeckSatelliteTracker {
         
         if (shouldShowIcon && isInView) {
           const iconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId);
+          
+          // Use interpolated position for smoother icon movement
+          const smoothPos = this.getSmoothSatellitePosition(satelliteId);
+          const lng = smoothPos ? smoothPos.longitude : satellite.position.lng;
+          const lat = smoothPos ? smoothPos.latitude : satellite.position.lat;
+          const altitude = smoothPos ? smoothPos.altitude : satellite.altitude;
+          const velocity = smoothPos ? smoothPos.velocity : satellite.velocity;
             
           const data = {
-            position: [satellite.position.lng, satellite.position.lat],
+            position: [lng, lat],
             icon: satelliteId,
             size: iconSize,
             id: satellite.id,
             name: satellite.name,
             type: satellite.type,
-            altitude: satellite.altitude,
-            velocity: satellite.velocity
+            altitude: altitude,
+            velocity: velocity
           };
           iconData.push(data);
         }
@@ -789,14 +816,19 @@ export class DeckSatelliteTracker {
 
   private startSimpleTracking() {
     this.stopSimpleTracking();
-    this.trackingInterval = window.setInterval(() => {
-      this.updateCameraToFollowedSatellite();
-    }, 1000); // Update every second
+    // Use requestAnimationFrame for 60fps smooth camera tracking instead of intervals
+    const smoothTrack = () => {
+      if (this.followingSatellite) {
+        this.updateCameraToFollowedSatellite();
+        this.trackingInterval = requestAnimationFrame(smoothTrack);
+      }
+    };
+    this.trackingInterval = requestAnimationFrame(smoothTrack);
   }
 
   private stopSimpleTracking() {
     if (this.trackingInterval) {
-      clearInterval(this.trackingInterval);
+      cancelAnimationFrame(this.trackingInterval);
       this.trackingInterval = null;
     }
   }
@@ -807,10 +839,30 @@ export class DeckSatelliteTracker {
     const satellite = this.satellites.get(this.followingSatellite);
     if (!satellite) return;
     
-    // Move camera to current satellite position
-    this.map.jumpTo({
-      center: [satellite.position.lng, satellite.position.lat]
-    });
+    // Use interpolated position for smoother tracking
+    const smoothPosition = this.getSmoothSatellitePosition(this.followingSatellite);
+    if (smoothPosition) {
+      // Use jumpTo at 60fps for ultra-smooth tracking - no animation conflicts
+      this.map.jumpTo({
+        center: [smoothPosition.longitude, smoothPosition.latitude]
+      });
+      
+      // Only log occasionally to avoid spam
+      if (Math.random() < 0.01) { // 1% chance per frame
+        console.log(`📍 Tracking ${satellite.name} at ${smoothPosition.latitude.toFixed(4)}, ${smoothPosition.longitude.toFixed(4)} (60fps smooth)`);
+      }
+    } else {
+      // Fallback to actual position
+      this.map.jumpTo({
+        center: [satellite.position.lng, satellite.position.lat]
+      });
+    }
+  }
+
+  // Get smooth interpolated position for a satellite
+  private getSmoothSatellitePosition(satelliteId: string) {
+    const now = Date.now();
+    return this.orbitalInterpolator.getInterpolatedPosition(satelliteId, now);
   }
 
 
@@ -928,6 +980,21 @@ export class DeckSatelliteTracker {
   }
 
   private processSatelliteUpdates(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
+    // Always update followed satellite in main thread for ultra-smooth tracking
+    if (this.followingSatellite) {
+      const followedSat = this.satellites.get(this.followingSatellite);
+      if (followedSat) {
+        // Calculate fresh position every frame for followed satellite
+        const position = this.calculateSatellitePosition(followedSat.tle1, followedSat.tle2, followedSat.id);
+        followedSat.position = new LngLat(position.longitude, position.latitude);
+        followedSat.altitude = position.altitude;
+        followedSat.velocity = position.velocity;
+        
+        // Force immediate layer update for followed satellite
+        this.updateLayers();
+      }
+    }
+    
     if (!this.satelliteWorker) {
       // Fallback to main thread calculations
       this.processSatelliteUpdatesMainThread(bounds, zoom, now, lastFullUpdate, FULL_UPDATE_INTERVAL, UPDATE_INTERVAL);
@@ -939,9 +1006,10 @@ export class DeckSatelliteTracker {
     
     let satelliteIndex = 0;
     for (const [id, sat] of this.satellites) {
-      const shouldUpdate = this.followingSatellite === id || 
+      // Skip followed satellite since we updated it above
+      const shouldUpdate = (this.followingSatellite !== id) && (
                           isFullUpdate ||
-                          (zoom > 3 && this.isInBounds(sat.position, bounds));
+                          (zoom > 3 && this.isInBounds(sat.position, bounds)));
       
       // For full updates, only update a subset each frame to spread load
       if (isFullUpdate && this.followingSatellite !== id) {
@@ -969,6 +1037,9 @@ export class DeckSatelliteTracker {
         data: updateRequests
       });
     }
+    
+    // Always update layers after processing
+    this.updateLayers();
   }
 
   private processSatelliteUpdatesMainThread(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
@@ -977,10 +1048,23 @@ export class DeckSatelliteTracker {
     let satelliteIndex = 0;
     const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
     
+    // First, always update followed satellite
+    if (this.followingSatellite) {
+      const followedSat = this.satellites.get(this.followingSatellite);
+      if (followedSat) {
+        const position = this.calculateSatellitePosition(followedSat.tle1, followedSat.tle2, followedSat.id);
+        followedSat.position = new LngLat(position.longitude, position.latitude);
+        followedSat.altitude = position.altitude;
+        followedSat.velocity = position.velocity;
+        updatedCount++;
+      }
+    }
+    
     for (const [id, sat] of this.satellites) {
-      const shouldUpdate = this.followingSatellite === id || 
+      // Skip followed satellite since we updated it above
+      const shouldUpdate = (this.followingSatellite !== id) && (
                           isFullUpdate ||
-                          (zoom > 3 && this.isInBounds(sat.position, bounds));
+                          (zoom > 3 && this.isInBounds(sat.position, bounds)));
       
       if (isFullUpdate && this.followingSatellite !== id) {
         const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 30;
@@ -1008,7 +1092,7 @@ export class DeckSatelliteTracker {
     let lastUpdate = 0;
     let lastFullUpdate = 0;
     
-    const FULL_UPDATE_INTERVAL = 3000; // Reduced to 0.33fps for background updates
+    const FULL_UPDATE_INTERVAL = 1000; // 1fps for background updates (more frequent for better interpolation)
     
     const updatePositions = () => {
       const now = Date.now();
@@ -1039,6 +1123,11 @@ export class DeckSatelliteTracker {
       }
       
       // Performance monitoring handled by PerformanceManager
+      
+      // Cleanup interpolator data periodically (every 60 seconds)
+      if (now % 60000 < UPDATE_INTERVAL) {
+        this.orbitalInterpolator.cleanup();
+      }
       
       this.animationId = requestAnimationFrame(updatePositions);
     };
