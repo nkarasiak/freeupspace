@@ -54,7 +54,7 @@
       }
       
       .corner-bracket.bottom-left {
-        bottom: 300px;
+        bottom: 220px;
         left: 24px;
         border-left: 2px solid #ffffff;
         border-bottom: 2px solid #ffffff;
@@ -62,7 +62,7 @@
       }
       
       .corner-bracket.bottom-right {
-        bottom: 300px;
+        bottom: 220px;
         right: 24px;
         border-right: 2px solid #ffffff;
         border-bottom: 2px solid #ffffff;
@@ -75,7 +75,7 @@
         bottom: 0;
         left: 0;
         right: 0;
-        height: 280px;
+        height: 200px;
         background: linear-gradient(
           180deg,
           rgba(0, 0, 0, 0) 0%,
@@ -146,27 +146,103 @@
       #control-sections {
         display: flex;
         justify-content: space-between;
-        gap: 18px;
-        flex: 1;
-        min-height: 0;
+        gap: 12px;
+        flex: 0 0 auto;
+        height: 50px;
+        align-items: flex-end;
       }
       
       .control-section {
         flex: 1;
+        position: relative;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        align-items: stretch;
       }
       
       .section-title {
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.8px;
+        letter-spacing: 0.6px;
         color: #00d4ff;
-        margin-bottom: 6px;
-        padding-bottom: 6px;
-        border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+        padding: 10px 12px;
+        border: 1px solid rgba(0, 212, 255, 0.3);
+        border-radius: 6px;
+        background: rgba(0, 212, 255, 0.08);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-align: center;
+        user-select: none;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .section-title:hover {
+        background: rgba(0, 212, 255, 0.15);
+        border-color: rgba(0, 212, 255, 0.5);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+      }
+
+      .section-title.active {
+        background: rgba(0, 212, 255, 0.2);
+        border-color: rgba(0, 212, 255, 0.7);
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+      }
+
+      /* Modal Dropdown Content */
+      .section-content {
+        position: absolute;
+        bottom: 100%;
+        left: 0;
+        right: 0;
+        margin-bottom: 10px;
+        background: linear-gradient(
+          180deg,
+          rgba(15, 15, 15, 0.98) 0%,
+          rgba(10, 10, 10, 0.95) 70%,
+          rgba(5, 5, 5, 0.9) 100%
+        );
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(0, 212, 255, 0.4);
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6), 
+                    0 -4px 16px rgba(0, 212, 255, 0.2);
+        transform: translateY(20px) scale(0.95);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 2000;
+        min-width: 220px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .section-content.active {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+        visibility: visible;
+      }
+
+      /* Arrow pointing down to the button */
+      .section-content::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0;
+        height: 0;
+        border-left: 8px solid transparent;
+        border-right: 8px solid transparent;
+        border-top: 8px solid rgba(0, 212, 255, 0.4);
       }
       
       /* Modern Dashboard Buttons */
@@ -293,56 +369,6 @@
         color: #ffffff;
       }
       
-      /* Pitch Control */
-      #pitch-control {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      
-      .pitch-label {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 11px;
-        font-weight: 600;
-        margin-bottom: 2px;
-      }
-      
-      #pitch-slider {
-        width: 100%;
-        height: 6px;
-        background: rgba(255, 255, 255, 0.12);
-        border-radius: 3px;
-        outline: none;
-        border: none;
-        cursor: pointer;
-      }
-      
-      #pitch-slider::-webkit-slider-thumb {
-        appearance: none;
-        width: 16px;
-        height: 16px;
-        background: linear-gradient(45deg, #00d4ff, #0096ff);
-        border-radius: 50%;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 6px rgba(0, 212, 255, 0.4);
-      }
-      
-      #pitch-slider::-webkit-slider-thumb:hover {
-        transform: scale(1.15);
-        box-shadow: 0 4px 12px rgba(0, 212, 255, 0.6);
-      }
-      
-      .pitch-info {
-        font-size: 9px;
-        opacity: 0.7;
-        text-align: center;
-        margin-top: 2px;
-        font-weight: 400;
-        color: #00d4ff;
-      }
 
       /* Satellite Filters */
       .filter-group {
@@ -600,68 +626,155 @@
         
         <!-- Navigation Controls -->
         <div class="control-section">
-          <div class="section-title">Navigation</div>
-          <button class="cockpit-btn" id="toggle-basemap">Day/Night Mode</button>
-          <button class="cockpit-btn" id="track-iss">Track ISS</button>
-          <button class="cockpit-btn" id="show-starlink">Orbit Paths</button>
-          <button class="cockpit-btn" id="pause-updates">Pause Updates</button>
-        </div>
-        
-        <!-- View Controls -->
-        <div class="control-section">
-          <div class="section-title">View Control</div>
-          <div id="pitch-control">
-            <div class="pitch-label">
-              <span>Pitch</span>
-              <span id="pitch-value">0°</span>
-            </div>
-            <input type="range" id="pitch-slider" min="0" max="85" value="0" step="1">
-            <div class="pitch-info">Direct MapLibre Control</div>
+          <div class="section-title" data-section="navigation">Navigation</div>
+          <div class="section-content" id="navigation-content">
+            <button class="cockpit-btn" id="toggle-basemap">🌗 Day/Night Mode</button>
+            <button class="cockpit-btn" id="track-iss">🛰️ Track ISS</button>
+            <button class="cockpit-btn" id="show-starlink">🔭 Orbit Paths</button>
+            <button class="cockpit-btn" id="pause-updates">⏸️ Pause Updates</button>
           </div>
         </div>
         
         <!-- Satellite Filters -->
         <div class="control-section" id="filter-panel">
-          <div class="section-title">Satellite Filters</div>
-          <div class="filter-group">
-            <label class="filter-item">
-              <input type="checkbox" id="filter-scientific" checked>
-              <span class="filter-label">🔬 Scientific</span>
-              <span class="filter-count" id="count-scientific">0</span>
-            </label>
-            <label class="filter-item">
-              <input type="checkbox" id="filter-communication" checked>
-              <span class="filter-label">📡 Communication</span>
-              <span class="filter-count" id="count-communication">0</span>
-            </label>
-            <label class="filter-item">
-              <input type="checkbox" id="filter-earth-observation" checked>
-              <span class="filter-label">🛰️ Earth Observation</span>
-              <span class="filter-count" id="count-earth-observation">0</span>
-            </label>
-            <label class="filter-item">
-              <input type="checkbox" id="filter-weather" checked>
-              <span class="filter-label">🌦️ Weather</span>
-              <span class="filter-count" id="count-weather">0</span>
-            </label>
-            <label class="filter-item">
-              <input type="checkbox" id="filter-navigation" checked>
-              <span class="filter-label">🧭 Navigation</span>
-              <span class="filter-count" id="count-navigation">0</span>
-            </label>
+          <div class="section-title" data-section="filters">Satellite Filters</div>
+          <div class="section-content" id="filters-content">
+            <div class="filter-group">
+              <label class="filter-item">
+                <input type="checkbox" id="filter-scientific" checked>
+                <span class="filter-label">🔬 Scientific</span>
+                <span class="filter-count" id="count-scientific">0</span>
+              </label>
+              <label class="filter-item">
+                <input type="checkbox" id="filter-communication" checked>
+                <span class="filter-label">📡 Communication</span>
+                <span class="filter-count" id="count-communication">0</span>
+              </label>
+              <label class="filter-item">
+                <input type="checkbox" id="filter-earth-observation" checked>
+                <span class="filter-label">🛰️ Earth Observation</span>
+                <span class="filter-count" id="count-earth-observation">0</span>
+              </label>
+              <label class="filter-item">
+                <input type="checkbox" id="filter-weather" checked>
+                <span class="filter-label">🌦️ Weather</span>
+                <span class="filter-count" id="count-weather">0</span>
+              </label>
+              <label class="filter-item">
+                <input type="checkbox" id="filter-navigation" checked>
+                <span class="filter-label">🧭 Navigation</span>
+                <span class="filter-count" id="count-navigation">0</span>
+              </label>
+            </div>
           </div>
         </div>
 
         <!-- Satellite Search -->
         <div class="control-section" id="search-panel">
-          <div class="section-title">Satellite Search</div>
-          <input type="text" id="satellite-search" placeholder="Search satellites..." />
-          <div id="search-results"></div>
+          <div class="section-title" data-section="search">Satellite Search</div>
+          <div class="section-content" id="search-content">
+            <input type="text" id="satellite-search" placeholder="🔍 Search satellites..." />
+            <div id="search-results"></div>
+          </div>
         </div>
         
       </div>
     </div>
     
     <script type="module" src="/src/main.ts"></script>
+    
+    <script>
+      // Modal dropdown functionality for cockpit sections
+      document.addEventListener('DOMContentLoaded', function() {
+        const sectionTitles = document.querySelectorAll('.section-title[data-section]');
+        let activeDropdown = null;
+        
+        // Close dropdown function
+        function closeDropdown(dropdown, title) {
+          if (dropdown && title) {
+            dropdown.classList.remove('active');
+            title.classList.remove('active');
+          }
+          activeDropdown = null;
+        }
+        
+        // Close all dropdowns
+        function closeAllDropdowns() {
+          sectionTitles.forEach(title => {
+            const sectionName = title.dataset.section;
+            const content = document.getElementById(sectionName + '-content');
+            closeDropdown(content, title);
+          });
+        }
+        
+        // Handle section title clicks
+        sectionTitles.forEach(title => {
+          title.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const sectionName = this.dataset.section;
+            const content = document.getElementById(sectionName + '-content');
+            
+            if (content) {
+              // If this dropdown is already active, close it
+              if (activeDropdown === content) {
+                closeDropdown(content, this);
+                return;
+              }
+              
+              // Close any other open dropdown first
+              closeAllDropdowns();
+              
+              // Open this dropdown
+              content.classList.add('active');
+              this.classList.add('active');
+              activeDropdown = content;
+              
+              // Auto-focus search input if this is the search section
+              if (sectionName === 'search') {
+                // Use setTimeout to ensure the dropdown animation starts first
+                setTimeout(() => {
+                  const searchInput = document.getElementById('satellite-search');
+                  if (searchInput) {
+                    searchInput.focus();
+                  }
+                }, 100);
+              }
+            }
+          });
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+          // Don't close if clicking inside an active dropdown
+          if (activeDropdown && activeDropdown.contains(e.target)) {
+            return;
+          }
+          
+          // Don't close if clicking on a section title
+          if (e.target.closest('.section-title[data-section]')) {
+            return;
+          }
+          
+          // Close any open dropdown
+          closeAllDropdowns();
+        });
+        
+        // Close dropdown on Escape key
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape' && activeDropdown) {
+            closeAllDropdowns();
+          }
+        });
+        
+        // Prevent dropdown content clicks from bubbling up
+        document.querySelectorAll('.section-content').forEach(content => {
+          content.addEventListener('click', function(e) {
+            e.stopPropagation();
+          });
+        });
+        
+        console.log('✅ Modal dropdown functionality initialized for cockpit sections');
+      });
+    </script>
   </body>
 </html>
