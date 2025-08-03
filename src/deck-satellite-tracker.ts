@@ -1,5 +1,5 @@
 import { Deck } from '@deck.gl/core';
-import { ScatterplotLayer, PathLayer, IconLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, IconLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap, LngLat } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
 import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
@@ -45,18 +45,13 @@ export class DeckSatelliteTracker {
   private satellites: Map<string, SatelliteData> = new Map();
   private animationId: number | null = null;
   private followingSatellite: string | null = null;
-  private isZooming = false;
   private showOrbits = false;
   private isPaused = false;
   private satelliteIcons: Map<string, any> = new Map();
   private onTrackingChangeCallback?: () => void;
   
-  // Predictive tracking system using orbital paths
-  private predictiveTrackingMode = false;
-  private trackingStartTime = 0;
-  private orbitalPathPoints: Array<{time: number, lat: number, lng: number}> = [];
-  private readonly TRACKING_DURATION = 60000; // 1 minute in milliseconds
-  private readonly PATH_RESOLUTION = 120; // 120 points over 1 minute = 0.5 second intervals
+  // Simple real-time tracking
+  private trackingInterval: number | null = null;
   
   // Performance optimization: cache satellite records and positions
   private satelliteRecords: Map<string, any> = new Map();
@@ -530,35 +525,6 @@ export class DeckSatelliteTracker {
   //     });
   // }
 
-  private generateOrbitPath(satelliteId: string): [number, number][] {
-    const sat = this.satellites.get(satelliteId);
-    if (!sat) return [];
-
-    const satrec = sat.tle1 && sat.tle2 ? 
-      satellite.twoline2satrec(sat.tle1, sat.tle2) : null;
-    if (!satrec) return [];
-
-    const points: [number, number][] = [];
-    const now = new Date();
-    const orbitPeriod = 90 * 60 * 1000; // 90 minutes in milliseconds
-    const steps = 100;
-
-    for (let i = 0; i < steps; i++) {
-      const time = new Date(now.getTime() + (i * orbitPeriod / steps));
-      const positionAndVelocity = satellite.propagate(satrec, time);
-      
-      if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
-        const gmst = satellite.gstime(time);
-        const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
-        points.push([
-          satellite.degreesLong(positionGd.longitude),
-          satellite.degreesLat(positionGd.latitude)
-        ]);
-      }
-    }
-
-    return points;
-  }
 
   private updateLayers(forceUpdate: boolean = false) {
     const now = Date.now();
@@ -639,23 +605,7 @@ export class DeckSatelliteTracker {
       }
     });
 
-    // Add orbit paths for followed satellite
-    if (this.followingSatellite && this.showOrbits) {
-      const orbitPath = this.generateOrbitPath(this.followingSatellite);
-      if (orbitPath.length > 0) {
-        layers.push(
-          new PathLayer({
-            id: 'orbit-path',
-            data: [{ path: orbitPath, color: [255, 255, 0, 128] }],
-            getPath: (d: any) => d.path,
-            getColor: (d: any) => d.color,
-            getWidth: 3,
-            widthUnits: 'pixels',
-            pickable: false
-          })
-        );
-      }
-    }
+    // Orbit paths removed for simplicity
 
     this.deck.setProps({ layers });
   }
@@ -698,10 +648,10 @@ export class DeckSatelliteTracker {
         essential: true
       });
       
-      // Initialize predictive tracking
-      this.initializePredictiveTracking(satelliteId);
+      // Start simple tracking
+      this.startSimpleTracking();
       
-      this.showMessage(`🎯 Following ${satellite.name} (Predictive Mode)`, 'success');
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.updateLayers(); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -727,10 +677,10 @@ export class DeckSatelliteTracker {
         essential: true
       });
       
-      // Initialize predictive tracking
-      this.initializePredictiveTracking(satelliteId);
+      // Start simple tracking
+      this.startSimpleTracking();
       
-      this.showMessage(`🎯 Following ${satellite.name} (Predictive Mode)`, 'success');
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.updateLayers(); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -742,9 +692,8 @@ export class DeckSatelliteTracker {
 
   stopFollowing() {
     this.followingSatellite = null;
-    this.predictiveTrackingMode = false;
-    this.orbitalPathPoints = [];
-    this.updateLayers(); // Update layers to hide orbit path
+    this.stopSimpleTracking();
+    this.updateLayers();
     
     // Notify about tracking change
     if (this.onTrackingChangeCallback) {
@@ -752,102 +701,32 @@ export class DeckSatelliteTracker {
     }
   }
 
-  private initializePredictiveTracking(satelliteId: string) {
-    const satelliteData = this.satellites.get(satelliteId);
-    if (!satelliteData) return;
+  private startSimpleTracking() {
+    this.stopSimpleTracking();
+    this.trackingInterval = window.setInterval(() => {
+      this.updateCameraToFollowedSatellite();
+    }, 1000); // Update every second
+  }
 
-    // Calculate actual orbital path points for the next minute
-    const satrec = satelliteData.tle1 && satelliteData.tle2 ? 
-      satellite.twoline2satrec(satelliteData.tle1, satelliteData.tle2) : null;
-    if (!satrec) return;
-    
-    const startTime = Date.now();
-    const timeIntervalMs = this.TRACKING_DURATION / this.PATH_RESOLUTION; // ~500ms intervals
-    
-    this.orbitalPathPoints = [];
-    
-    // Calculate orbital path points for the next minute
-    for (let i = 0; i < this.PATH_RESOLUTION; i++) {
-      const timeOffset = i * timeIntervalMs;
-      const futureTime = new Date(startTime + timeOffset);
-      
-      const positionAndVelocity = satellite.propagate(satrec, futureTime);
-      if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
-        const gmst = satellite.gstime(futureTime);
-        const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
-        
-        this.orbitalPathPoints.push({
-          time: timeOffset, // milliseconds from start
-          lat: satellite.degreesLat(positionGd.latitude),
-          lng: satellite.degreesLong(positionGd.longitude)
-        });
-      }
-    }
-    
-    if (this.orbitalPathPoints.length > 0) {
-      this.predictiveTrackingMode = true;
-      this.trackingStartTime = startTime;
-      
-      console.log(`🛰️ Orbital path tracking initialized for ${satelliteData.name}:`);
-      console.log(`   Calculated ${this.orbitalPathPoints.length} orbital path points`);
-      console.log(`   Start: ${this.orbitalPathPoints[0].lat.toFixed(4)}°, ${this.orbitalPathPoints[0].lng.toFixed(4)}°`);
-      console.log(`   End: ${this.orbitalPathPoints[this.orbitalPathPoints.length-1].lat.toFixed(4)}°, ${this.orbitalPathPoints[this.orbitalPathPoints.length-1].lng.toFixed(4)}°`);
+  private stopSimpleTracking() {
+    if (this.trackingInterval) {
+      clearInterval(this.trackingInterval);
+      this.trackingInterval = null;
     }
   }
 
-  private getPredictedPosition(): {lat: number, lng: number} | null {
-    if (!this.predictiveTrackingMode || this.orbitalPathPoints.length === 0) {
-      return null;
-    }
+  private updateCameraToFollowedSatellite() {
+    if (!this.followingSatellite) return;
     
-    const elapsedTimeMs = Date.now() - this.trackingStartTime;
+    const satellite = this.satellites.get(this.followingSatellite);
+    if (!satellite) return;
     
-    // Check if we should recalculate (after 1 minute)
-    if (elapsedTimeMs > this.TRACKING_DURATION) {
-      console.log(`🔄 Orbital path tracking expired, switching back to calculated positions`);
-      this.predictiveTrackingMode = false;
-      return null;
-    }
-    
-    // Find the two orbital path points to interpolate between
-    let beforeIndex = -1;
-    let afterIndex = -1;
-    
-    for (let i = 0; i < this.orbitalPathPoints.length - 1; i++) {
-      if (elapsedTimeMs >= this.orbitalPathPoints[i].time && 
-          elapsedTimeMs <= this.orbitalPathPoints[i + 1].time) {
-        beforeIndex = i;
-        afterIndex = i + 1;
-        break;
-      }
-    }
-    
-    // If we're past the last point, use the last calculated position
-    if (beforeIndex === -1) {
-      const lastPoint = this.orbitalPathPoints[this.orbitalPathPoints.length - 1];
-      return { lat: lastPoint.lat, lng: lastPoint.lng };
-    }
-    
-    // Interpolate between the two points
-    const before = this.orbitalPathPoints[beforeIndex];
-    const after = this.orbitalPathPoints[afterIndex];
-    const timeDelta = after.time - before.time;
-    const progress = (elapsedTimeMs - before.time) / timeDelta;
-    
-    // Handle longitude wraparound for interpolation
-    let lngDiff = after.lng - before.lng;
-    if (lngDiff > 180) lngDiff -= 360;
-    if (lngDiff < -180) lngDiff += 360;
-    
-    const interpolatedLat = before.lat + (after.lat - before.lat) * progress;
-    let interpolatedLng = before.lng + lngDiff * progress;
-    
-    // Normalize longitude
-    if (interpolatedLng > 180) interpolatedLng -= 360;
-    if (interpolatedLng < -180) interpolatedLng += 360;
-    
-    return { lat: interpolatedLat, lng: interpolatedLng };
+    // Move camera to current satellite position
+    this.map.jumpTo({
+      center: [satellite.position.lng, satellite.position.lat]
+    });
   }
+
 
   toggleOrbits() {
     this.showOrbits = !this.showOrbits;
@@ -972,6 +851,8 @@ export class DeckSatelliteTracker {
         let updatedCount = 0;
         let satelliteIndex = 0;
         for (const [id, sat] of this.satellites) {
+          // All satellites get their positions updated normally
+          
           // Staggered updates: spread computation over multiple frames
           const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
           const shouldUpdate = this.followingSatellite === id || 
@@ -980,7 +861,7 @@ export class DeckSatelliteTracker {
           
           // For full updates, only update a subset each frame to spread load
           if (isFullUpdate && this.followingSatellite !== id) {
-            const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 20; // Spread over 20 frames instead of 10
+            const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 20; // Spread over 20 frames
             if (satelliteIndex % 20 !== frameOffset) {
               satelliteIndex++;
               continue;
@@ -1035,37 +916,7 @@ export class DeckSatelliteTracker {
 
 
   private updateFollowing() {
-    if (this.followingSatellite && !this.isZooming) {
-      const satellite = this.satellites.get(this.followingSatellite);
-      if (satellite) {
-        let targetPosition: {lat: number, lng: number};
-        
-        // Use predictive position if in predictive tracking mode
-        const predictedPos = this.getPredictedPosition();
-        if (predictedPos) {
-          targetPosition = predictedPos;
-          // Update satellite's displayed position for consistency
-          satellite.position = new LngLat(predictedPos.lng, predictedPos.lat);
-        } else {
-          // Fall back to calculated position
-          targetPosition = { lat: satellite.position.lat, lng: satellite.position.lng };
-        }
-        
-        const currentCenter = this.map.getCenter();
-        const threshold = 0.01; // Small threshold for smooth updates
-        const deltaLng = Math.abs(currentCenter.lng - targetPosition.lng);
-        const deltaLat = Math.abs(currentCenter.lat - targetPosition.lat);
-        
-        if (deltaLng > threshold || deltaLat > threshold) {
-          // Use easeTo for smooth camera movement at 25fps
-          this.map.easeTo({
-            center: [targetPosition.lng, targetPosition.lat],
-            duration: 40, // 40ms for 25fps
-            easing: (t) => t // Linear easing for smooth continuous movement
-          });
-        }
-      }
-    }
+    // Tracking is now handled by simple interval in startSimpleTracking()
   }
 
   private setupSearchFunctionality() {
@@ -1138,18 +989,12 @@ export class DeckSatelliteTracker {
     const satellite = this.satellites.get(satelliteId);
     if (satellite) {
       this.followingSatellite = satelliteId;
-      this.isZooming = true;
-      
       this.map.flyTo({
         center: [satellite.position.lng, satellite.position.lat],
         zoom: 5, // Zoom to level 5 when selecting from search
         duration: 2000,
         essential: true
       });
-      
-      setTimeout(() => {
-        this.isZooming = false;
-      }, 2500);
       
       this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.showSatelliteInfo(satellite);
