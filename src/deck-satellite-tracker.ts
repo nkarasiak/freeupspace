@@ -695,6 +695,7 @@ export class DeckSatelliteTracker {
   private getSatelliteImageSize(zoom: number, satelliteWidth: number, satelliteId: string): number {
     // Smart size scaling with performance caps
     const effectiveZoom = Math.max(zoom, 0.5);
+    const isTracked = this.followingSatellite === satelliteId;
     
     let size: number;
     if (satelliteId === 'iss') {
@@ -703,7 +704,9 @@ export class DeckSatelliteTracker {
     } else {
       // Others: Aggressive scaling but with performance caps
       if (zoom <= 6) {
-        size = Math.min(effectiveZoom * satelliteWidth * 2, 120); // Reduced multiplier, cap at 120px
+        // Tracked satellite gets 6x multiplier, others get 2x multiplier
+        const multiplier = isTracked ? 6 : 2;
+        size = Math.min(effectiveZoom * satelliteWidth * multiplier, 120); // Cap at 120px
       } else {
         size = Math.min(effectiveZoom * satelliteWidth * 3, 200); // Higher zoom gets bigger, cap at 200px
       }
