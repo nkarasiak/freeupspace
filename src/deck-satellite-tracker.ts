@@ -828,10 +828,6 @@ export class DeckSatelliteTracker {
       }
     });
     
-    // Only log occasionally to avoid spam
-    if (Math.random() < 0.01) { // 1% chance
-      console.log(`🖼️ Rendering ${iconData.length} satellite images (zoom: ${zoom.toFixed(1)})`);
-    }
     return iconData;
   }
 
@@ -1125,7 +1121,7 @@ export class DeckSatelliteTracker {
         console.log('📊 Smooth tracker status:', this.smoothTracker.isTracking());
       }, 2100);
       
-      this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.updateLayers(true); // Update layers to show orbit path if enabled
       
       // Notify about tracking change
@@ -1209,7 +1205,7 @@ export class DeckSatelliteTracker {
       
       this.map.on('moveend', onFlyToComplete);
       
-      this.showMessage(`🎯 Following ${satellite.name} with ultra-smooth tracking`, 'success');
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.updateLayers(true); // Update layers to show orbit path if enabled
     }
   }

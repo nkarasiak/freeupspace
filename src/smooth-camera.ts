@@ -100,14 +100,6 @@ export class SmoothCamera {
     // Calculate distance for movement threshold
     const distance = this.calculateDistance(currentState.center, targetCenter);
     
-    // Debug logging
-    if (Math.random() < 0.01) { // 1% chance to avoid spam
-      console.log('🎬 Smooth camera update:', {
-        current: currentState.center,
-        target: targetCenter,
-        distance: distance.toFixed(6)
-      });
-    }
     
     // Skip update if movement is too small
     if (distance < this.MIN_MOVEMENT_THRESHOLD) {

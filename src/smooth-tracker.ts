@@ -32,7 +32,7 @@ export class SmoothTracker {
   
   // Ultra-high frequency prediction cache
   private predictionCache = new Map<number, PredictivePosition>();
-  private readonly CACHE_SIZE = 2000; // Store 2000 predictions (16+ seconds at 120fps)
+  private readonly CACHE_SIZE = 500; // Store 500 predictions (~16 seconds at 30fps)
   private readonly UPDATE_FREQUENCY = 33; // 30fps - update every 33ms for smooth tracking
   private readonly PREDICTION_HORIZON = 5000; // Predict 5 seconds ahead
 
@@ -209,7 +209,6 @@ export class SmoothTracker {
       this.predictionCache.set(cacheKey, position);
     }
     
-    console.log(`📊 Pre-calculated ${this.CACHE_SIZE} positions for smooth tracking`);
   }
 
   // Start high-frequency position updates
@@ -235,8 +234,8 @@ export class SmoothTracker {
         this.onPositionUpdate(position);
       }
       
-      // Refresh cache and recalculate exact position every 2 seconds
-      if (now - this.trackingState.lastKnownPosition.timestamp > 2000) {
+      // Refresh cache and recalculate exact position every 15 seconds
+      if (now - this.trackingState.lastKnownPosition.timestamp > 15000) {
         this.refreshTrackingData();
       }
       
@@ -271,7 +270,6 @@ export class SmoothTracker {
     // Refresh prediction cache with new data
     this.populatePredictionCache();
     
-    console.log(`🔄 Tracking data refreshed - Confidence restored to 100%`);
   }
 
   // Calculate orbital period in milliseconds
