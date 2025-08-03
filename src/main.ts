@@ -386,16 +386,29 @@ class SatelliteTracker3D {
     const starlinkCount = Array.from(satellites.values()).filter(sat => sat.type === 'communication').length;
     const sentinelCount = Array.from(satellites.values()).filter(sat => sat.type === 'earth-observation').length;
     const totalCount = satellites.size;
+    const followingSatellite = this.satelliteTracker.getFollowingSatellite();
 
+    // Update status displays
     const satelliteCountElement = document.getElementById('satellite-count');
     const issAltitudeElement = document.getElementById('iss-altitude');
     const starlinkCountElement = document.getElementById('starlink-count');
     const sentinelCountElement = document.getElementById('sentinel-count');
+    const trackingStatusElement = document.getElementById('tracking-status');
 
     if (satelliteCountElement) satelliteCountElement.textContent = totalCount.toString();
     if (issAltitudeElement && iss) issAltitudeElement.textContent = iss.altitude.toFixed(0);
     if (starlinkCountElement) starlinkCountElement.textContent = starlinkCount.toString();
     if (sentinelCountElement) sentinelCountElement.textContent = sentinelCount.toString();
+    
+    // Update tracking status
+    if (trackingStatusElement) {
+      if (followingSatellite) {
+        const satellite = satellites.get(followingSatellite);
+        trackingStatusElement.textContent = satellite ? satellite.name.substring(0, 8).toUpperCase() : 'UNKNOWN';
+      } else {
+        trackingStatusElement.textContent = 'FREE VIEW';
+      }
+    }
   }
 }
 
