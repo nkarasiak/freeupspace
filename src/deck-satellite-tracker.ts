@@ -236,6 +236,40 @@ export class DeckSatelliteTracker {
     setTimeout(syncView, 100);
   }
 
+  // Load only ISS immediately for instant tracking
+  loadISSOnly() {
+    console.log('🚀 Loading ISS immediately for instant tracking...');
+    const issConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === 'iss-zarya-25544');
+    
+    if (issConfig) {
+      try {
+        const position = this.calculateSatellitePosition(issConfig.tle1, issConfig.tle2, issConfig.id);
+        
+        if (!isNaN(position.longitude) && !isNaN(position.latitude) && !isNaN(position.altitude)) {
+          this.satellites.set(issConfig.id, {
+            ...issConfig,
+            position: new LngLat(position.longitude, position.latitude),
+            altitude: position.altitude,
+            velocity: position.velocity
+          });
+          
+          // Load ISS icon immediately
+          if (issConfig.image) {
+            this.loadSatelliteIcon(issConfig.id, issConfig.image);
+          } else {
+            this.createDotIcon(issConfig.id);
+          }
+          
+          console.log('✅ ISS loaded and ready for tracking');
+          return true;
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to load ISS immediately:', error);
+      }
+    }
+    return false;
+  }
+
   async initialize() {
     // Load config satellites first (synchronously) for immediate tracking
     this.loadConfigSatellites();
@@ -920,7 +954,7 @@ export class DeckSatelliteTracker {
   }
 
 
-  private updateLayers(forceUpdate: boolean = false) {
+  updateLayers(forceUpdate: boolean = false) {
     const now = Date.now();
     const zoom = this.map.getZoom();
     const bounds = this.map.getBounds();
@@ -1429,7 +1463,7 @@ export class DeckSatelliteTracker {
   }
 
   // Background satellite position updates (separate from camera tracking)
-  private startBackgroundUpdates() {
+  startBackgroundUpdates() {
     let lastUpdate = 0;
     let lastFullUpdate = 0;
     

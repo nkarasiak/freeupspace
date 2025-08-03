@@ -368,54 +368,97 @@ class SatelliteTracker3D {
 
   private startTracking() {
     this.map.on('load', () => {
-      // Wait a bit for the basemap to be added, then initialize satellites
-      setTimeout(async () => {
-        // Restore satellite tracking from URL if specified, otherwise default to ISS
-        const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya-25544';
-        const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
+      // Restore satellite tracking from URL if specified, otherwise default to ISS
+      const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya-25544';
+      const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
+      
+      console.log(`🔍 AUTO-TRACK INIT: satelliteToTrack='${satelliteToTrack}', isDefaultISS=${isDefaultISS}`);
+      
+      // If tracking ISS (default case), load it immediately without waiting for API
+      if (satelliteToTrack === 'iss-zarya-25544') {
+        console.log('🚀 INSTANT ISS MODE: Loading ISS immediately...');
         
-        console.log(`🔍 AUTO-TRACK INIT: satelliteToTrack='${satelliteToTrack}', isDefaultISS=${isDefaultISS}`);
+        // Load ISS immediately (no API dependency)
+        const issLoaded = this.satelliteTracker.loadISSOnly();
         
-        // Initialize satellite tracker
-        await this.satelliteTracker.initialize();
-        
-        // Try to track satellite from URL (config satellites are now loaded)
-        if (satelliteToTrack) {
-          const satellites = this.satelliteTracker.getSatellites();
-          console.log(`🔍 AUTO-TRACK: Looking for '${satelliteToTrack}', found ${satellites.size} satellites, has target: ${satellites.has(satelliteToTrack)}`);
-          if (satellites.has(satelliteToTrack)) {
+        if (issLoaded) {
+          // Start layers and background updates immediately for ISS
+          this.satelliteTracker.updateLayers();
+          this.satelliteTracker.startBackgroundUpdates();
+          
+          // Start ISS tracking immediately
+          setTimeout(() => {
             const zoomToUse = isDefaultISS ? 5 : this.initialZoom;
             const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
             
-            console.log(`🎯 AUTO-TRACK: Starting tracking for ${satelliteToTrack}`);
-            // Add small delay to ensure map and layers are fully ready
-            setTimeout(() => {
-              console.log(`🎯 AUTO-TRACK: Executing followSatelliteWithAnimation for ${satelliteToTrack}`);
-              this.satelliteTracker.followSatelliteWithAnimation(
-                satelliteToTrack, 
-                zoomToUse,
-                pitchToUse,
-                this.urlState.getInitialBearing()
-              );
-            }, 500);
+            console.log(`🎯 INSTANT ISS TRACK: Starting immediate ISS tracking`);
+            this.satelliteTracker.followSatelliteWithAnimation(
+              satelliteToTrack, 
+              zoomToUse,
+              pitchToUse,
+              this.urlState.getInitialBearing()
+            );
             
-            setTimeout(() => {
-              this.urlState.setInitializing(false);
-              this.isInitializing = false;
-            }, 4000);
-          } else {
-            console.log(`❌ AUTO-TRACK: Satellite '${satelliteToTrack}' not found in ${satellites.size} loaded satellites`);
-            this.urlState.removeInvalidSatellite();
-            setTimeout(() => {
-              this.urlState.setInitializing(false);
-              this.isInitializing = false;
+            // Load all other satellites in background (non-blocking)
+            setTimeout(async () => {
+              console.log('🌍 Loading additional satellites in background...');
+              await this.satelliteTracker.initialize();
+              console.log('✅ All satellites loaded');
             }, 1000);
-          }
+            
+          }, 100); // Very short delay for ISS tracking
+          
+          setTimeout(() => {
+            this.urlState.setInitializing(false);
+            this.isInitializing = false;
+          }, 2000); // Shorter timeout for instant tracking
         }
-        
-        this.updateUI();
-        setInterval(() => this.updateUI(), 5000);
-      }, 500); // Increased delay to ensure proper initialization
+      } else {
+        // For non-ISS satellites, use the full initialization
+        setTimeout(async () => {
+          console.log(`🔍 FULL INIT MODE: Loading all satellites for '${satelliteToTrack}'`);
+          
+          // Initialize satellite tracker
+          await this.satelliteTracker.initialize();
+          
+          // Try to track satellite from URL (config satellites are now loaded)
+          if (satelliteToTrack) {
+            const satellites = this.satelliteTracker.getSatellites();
+            console.log(`🔍 AUTO-TRACK: Looking for '${satelliteToTrack}', found ${satellites.size} satellites, has target: ${satellites.has(satelliteToTrack)}`);
+            if (satellites.has(satelliteToTrack)) {
+              const zoomToUse = this.initialZoom;
+              const pitchToUse = this.urlState.getInitialPitch();
+              
+              console.log(`🎯 AUTO-TRACK: Starting tracking for ${satelliteToTrack}`);
+              // Add small delay to ensure map and layers are fully ready
+              setTimeout(() => {
+                console.log(`🎯 AUTO-TRACK: Executing followSatelliteWithAnimation for ${satelliteToTrack}`);
+                this.satelliteTracker.followSatelliteWithAnimation(
+                  satelliteToTrack, 
+                  zoomToUse,
+                  pitchToUse,
+                  this.urlState.getInitialBearing()
+                );
+              }, 500);
+              
+              setTimeout(() => {
+                this.urlState.setInitializing(false);
+                this.isInitializing = false;
+              }, 4000);
+            } else {
+              console.log(`❌ AUTO-TRACK: Satellite '${satelliteToTrack}' not found in ${satellites.size} loaded satellites`);
+              this.urlState.removeInvalidSatellite();
+              setTimeout(() => {
+                this.urlState.setInitializing(false);
+                this.isInitializing = false;
+              }, 1000);
+            }
+          }
+        }, 500);
+      }
+      
+      this.updateUI();
+      setInterval(() => this.updateUI(), 5000);
     });
   }
 
