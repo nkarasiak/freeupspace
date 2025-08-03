@@ -29,6 +29,17 @@ export class URLState {
     return urlParams.get('satellite');
   }
 
+  getInitialCoordinates(): [number, number] | null {
+    const urlParams = new URLSearchParams(window.location.search);
+    const x = urlParams.get('x');
+    const y = urlParams.get('y');
+    
+    if (x && y) {
+      return [parseFloat(x), parseFloat(y)];
+    }
+    return null;
+  }
+
   updateURL(zoom: number, followingSatellite: string | null, pitch?: number, bearing?: number) {
     if (this.isInitializing) {
       console.log(`🚫 Skipping URL update during initialization`);
@@ -38,6 +49,7 @@ export class URLState {
     const url = new URL(window.location.href);
     const originalUrl = url.toString();
     
+    // Always remove x,y coordinates from URL (don't store them)
     url.searchParams.delete('x');
     url.searchParams.delete('y');
     

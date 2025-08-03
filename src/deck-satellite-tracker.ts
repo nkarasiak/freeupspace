@@ -2,7 +2,7 @@ import { Deck } from '@deck.gl/core';
 import { ScatterplotLayer, PathLayer, IconLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap, LngLat } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
-import { SATELLITE_CONFIGS } from './satellite-config';
+import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
 
 export interface SatelliteData {
   id: string;
@@ -49,6 +49,15 @@ export class DeckSatelliteTracker {
   private showOrbits = false;
   private satelliteIcons: Map<string, any> = new Map();
   private onTrackingChangeCallback?: () => void;
+  
+  // Performance optimization: cache satellite records and positions
+  private satelliteRecords: Map<string, any> = new Map();
+  private positionCache: Map<string, {position: any, timestamp: number}> = new Map();
+  private readonly POSITION_CACHE_TTL = 5000; // Cache positions for 5 seconds
+  
+  // Performance monitoring
+  private frameCount = 0;
+  private lastFPSUpdate = 0;
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -180,9 +189,9 @@ export class DeckSatelliteTracker {
   }
 
   private loadSampleSatellites() {
-    SATELLITE_CONFIGS.forEach(sat => {
+    SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
       try {
-        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2);
+        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
         
         if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
           console.error(`❌ Invalid position for satellite ${sat.id}`);
@@ -204,7 +213,7 @@ export class DeckSatelliteTracker {
 
   private loadSatelliteIcons() {
     // Find all satellites with images
-    const satellitesWithImages = SATELLITE_CONFIGS.filter(sat => sat.image);
+    const satellitesWithImages = SATELLITE_CONFIGS_WITH_STARLINK.filter(sat => sat.image);
     
     satellitesWithImages.forEach(satConfig => {
       this.loadSatelliteIcon(satConfig.id, satConfig.image!);
@@ -245,16 +254,33 @@ export class DeckSatelliteTracker {
     img.src = imageUrl;
   }
 
-  private calculateSatellitePosition(tle1: string, tle2: string) {
-    const satrec = satellite.twoline2satrec(tle1, tle2);
-    const now = new Date();
-    const positionAndVelocity = satellite.propagate(satrec, now);
+  private calculateSatellitePosition(tle1: string, tle2: string, satelliteId?: string) {
+    const now = Date.now();
+    
+    // Check cache first if satellite ID is provided
+    if (satelliteId) {
+      const cached = this.positionCache.get(satelliteId);
+      if (cached && now - cached.timestamp < this.POSITION_CACHE_TTL) {
+        return cached.position;
+      }
+    }
+    
+    // Get or create satellite record (expensive operation)
+    const cacheKey = `${tle1}-${tle2}`;
+    let satrec = this.satelliteRecords.get(cacheKey);
+    if (!satrec) {
+      satrec = satellite.twoline2satrec(tle1, tle2);
+      this.satelliteRecords.set(cacheKey, satrec);
+    }
+    
+    const currentTime = new Date();
+    const positionAndVelocity = satellite.propagate(satrec, currentTime);
     
     if (positionAndVelocity.position && typeof positionAndVelocity.position !== 'boolean') {
-      const gmst = satellite.gstime(now);
+      const gmst = satellite.gstime(currentTime);
       const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
       
-      return {
+      const result = {
         longitude: satellite.degreesLong(positionGd.longitude),
         latitude: satellite.degreesLat(positionGd.latitude),
         altitude: positionGd.height,
@@ -265,6 +291,13 @@ export class DeckSatelliteTracker {
             Math.pow(positionAndVelocity.velocity.z, 2)
           ) : 0
       };
+      
+      // Cache the result if satellite ID is provided
+      if (satelliteId) {
+        this.positionCache.set(satelliteId, { position: result, timestamp: now });
+      }
+      
+      return result;
     }
     
     return { longitude: 0, latitude: 0, altitude: 0, velocity: 0 };
@@ -303,27 +336,57 @@ export class DeckSatelliteTracker {
 
   private generateSatellitePoints(): SatellitePointData[] {
     const zoom = this.map.getZoom();
-    // Exclude satellites that have custom images from circle rendering, except:
-    // 1. ISS (always shows as image)
-    // 2. Other satellites with images when zoom < 4 (show as circles)
-    const satellitesWithImages = SATELLITE_CONFIGS.filter(sat => sat.image).map(sat => sat.id);
+    const bounds = this.map.getBounds();
+    
+    // Level of Detail (LOD) rendering for performance - More aggressive
+    const getLODSkip = (zoom: number): number => {
+      if (zoom <= 1) return 50; // Show every 50th satellite at very low zoom
+      if (zoom <= 2) return 25; // Show every 25th satellite at low zoom
+      if (zoom <= 3) return 10; // Show every 10th satellite at medium zoom
+      if (zoom <= 4) return 5;  // Show every 5th satellite
+      if (zoom <= 5) return 3;  // Show every 3rd satellite
+      if (zoom <= 6) return 2;  // Show every 2nd satellite
+      return 1; // Show all satellites only at very high zoom
+    };
+    
+    const lodSkip = getLODSkip(zoom);
+    
+    // Exclude satellites that have custom images from circle rendering
+    const satellitesWithImages = SATELLITE_CONFIGS_WITH_STARLINK.filter(sat => sat.image).map(sat => sat.id);
     
     const points = Array.from(this.satellites.values())
-      .filter(sat => {
-        // Always exclude ISS from circles (it always shows as image)
-        if (sat.id === 'iss') return false;
+      .filter((sat, index) => {
+        // Always show followed satellite and ISS
+        if (this.followingSatellite === sat.id || sat.id === 'iss') return false; // ISS handled separately
         
-        // If satellite has image but zoom < 4, include it in circles
-        if (satellitesWithImages.includes(sat.id) && zoom < 4) return true;
+        // LOD filtering: skip satellites based on zoom level
+        if (sat.type === 'communication' && lodSkip > 1 && index % lodSkip !== 0) {
+          return false;
+        }
         
-        // If satellite has image and zoom >= 4, exclude it from circles
-        if (satellitesWithImages.includes(sat.id) && zoom >= 4) return false;
+        // Viewport culling: only show satellites in or near the current view
+        if (zoom < 4) {
+          const margin = zoom < 2 ? 60 : 30; // Larger margin at very low zoom
+          const expandedBounds = {
+            getWest: () => bounds.getWest() - margin,
+            getEast: () => bounds.getEast() + margin,
+            getSouth: () => bounds.getSouth() - margin/2,
+            getNorth: () => bounds.getNorth() + margin/2
+          };
+          if (!this.isInBounds(sat.position, expandedBounds)) {
+            return false;
+          }
+        }
         
-        // If satellite has no image, always include in circles
-        return true;
+        // Image satellite filtering
+        if (satellitesWithImages.includes(sat.id)) {
+          return zoom < 4; // Show as circles only at low zoom
+        }
+        
+        return true; // Show non-image satellites
       })
       .map(sat => ({
-        position: [sat.position.lng, sat.position.lat, 0] as [number, number, number], // Render at ground level
+        position: [sat.position.lng, sat.position.lat, 0] as [number, number, number],
         id: sat.id,
         name: sat.name,
         type: sat.type,
@@ -334,6 +397,7 @@ export class DeckSatelliteTracker {
         size: this.getSizeForZoom(zoom, sat.dimensions.length * 2)
       }));
     
+    console.log(`🎯 Rendering ${points.length} satellites (LOD skip: ${lodSkip}, zoom: ${zoom.toFixed(1)})`);
     return points;
   }
 
@@ -555,6 +619,32 @@ export class DeckSatelliteTracker {
     }
   }
 
+  followSatelliteWithAnimation(satelliteId: string, targetZoom: number, targetPitch: number, targetBearing: number) {
+    this.followingSatellite = satelliteId;
+    const satellite = this.satellites.get(satelliteId);
+    
+    if (satellite) {
+      console.log(`🛰️ Flying to ${satellite.name} with animation - zoom: ${targetZoom}, pitch: ${targetPitch}°, bearing: ${targetBearing}°`);
+      
+      this.map.flyTo({
+        center: [satellite.position.lng, satellite.position.lat],
+        zoom: targetZoom,
+        pitch: targetPitch,
+        bearing: targetBearing,
+        duration: 3000, // Slightly longer for URL loads to show the smooth animation
+        essential: true
+      });
+      
+      this.showMessage(`🎯 Following ${satellite.name}`, 'success');
+      this.updateLayers(); // Update layers to show orbit path if enabled
+      
+      // Notify about tracking change
+      if (this.onTrackingChangeCallback) {
+        this.onTrackingChangeCallback();
+      }
+    }
+  }
+
   stopFollowing() {
     this.followingSatellite = null;
     this.updateLayers(); // Update layers to hide orbit path
@@ -653,18 +743,50 @@ export class DeckSatelliteTracker {
 
   private startTracking() {
     let lastUpdate = 0;
-    const UPDATE_INTERVAL = 100; // Calculate TLE positions at 10fps (every 100ms)
+    let lastFullUpdate = 0;
+    const UPDATE_INTERVAL = 200; // Reduced to 5fps for better performance
+    const FULL_UPDATE_INTERVAL = 2000; // Reduced to 0.5fps for background updates
     
     const updatePositions = () => {
       const now = Date.now();
       
       if (now - lastUpdate >= UPDATE_INTERVAL) {
-        // Calculate real-time orbital positions for all satellites
-        for (const [, sat] of this.satellites) {
-          const position = this.calculateSatellitePosition(sat.tle1, sat.tle2);
-          sat.position = new LngLat(position.longitude, position.latitude);
-          sat.altitude = position.altitude;
-          sat.velocity = position.velocity;
+        // Get current map view bounds for performance optimization
+        const bounds = this.map.getBounds();
+        const zoom = this.map.getZoom();
+        
+        // Only update satellites that are likely visible or being followed
+        let updatedCount = 0;
+        let satelliteIndex = 0;
+        for (const [id, sat] of this.satellites) {
+          // Staggered updates: spread computation over multiple frames
+          const isFullUpdate = now - lastFullUpdate >= FULL_UPDATE_INTERVAL;
+          const shouldUpdate = this.followingSatellite === id || 
+                             isFullUpdate ||
+                             (zoom > 3 && this.isInBounds(sat.position, bounds));
+          
+          // For full updates, only update a subset each frame to spread load
+          if (isFullUpdate && this.followingSatellite !== id) {
+            const frameOffset = Math.floor(now / UPDATE_INTERVAL) % 20; // Spread over 20 frames instead of 10
+            if (satelliteIndex % 20 !== frameOffset) {
+              satelliteIndex++;
+              continue;
+            }
+          }
+          
+          if (shouldUpdate) {
+            const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+            sat.position = new LngLat(position.longitude, position.latitude);
+            sat.altitude = position.altitude;
+            sat.velocity = position.velocity;
+            updatedCount++;
+          }
+          satelliteIndex++;
+        }
+
+        if (now - lastFullUpdate >= FULL_UPDATE_INTERVAL) {
+          lastFullUpdate = now;
+          console.log(`🛰️ Updated ${updatedCount} satellites (full update)`);
         }
 
         this.updateLayers();
@@ -672,10 +794,27 @@ export class DeckSatelliteTracker {
       }
       
       this.updateFollowing();
+      
+      // Performance monitoring
+      this.frameCount++;
+      if (now - this.lastFPSUpdate > 5000) { // Every 5 seconds
+        const fps = (this.frameCount * 1000) / (now - this.lastFPSUpdate);
+        console.log(`⚡ Performance: ${fps.toFixed(1)} FPS, ${this.satellites.size} satellites`);
+        this.frameCount = 0;
+        this.lastFPSUpdate = now;
+      }
+      
       this.animationId = requestAnimationFrame(updatePositions);
     };
 
     updatePositions();
+  }
+
+  private isInBounds(position: LngLat, bounds: any): boolean {
+    return position.lng >= bounds.getWest() && 
+           position.lng <= bounds.getEast() && 
+           position.lat >= bounds.getSouth() && 
+           position.lat <= bounds.getNorth();
   }
 
 

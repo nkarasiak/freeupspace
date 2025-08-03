@@ -24,6 +24,14 @@ class SatelliteTracker3D {
     this.initialZoom = this.urlState.getInitialZoom();
     const initialPitch = this.urlState.getInitialPitch();
     const initialBearing = this.urlState.getInitialBearing();
+    const initialCoordinates = this.urlState.getInitialCoordinates();
+    const initialSatellite = this.urlState.getInitialSatellite();
+    
+    // Always start at global view for smooth flyTo animation to satellites
+    // If specific coordinates are provided AND no satellite is specified, use them
+    const initialCenter: [number, number] = (!initialSatellite && initialCoordinates) ? initialCoordinates : [0, 0];
+    
+    console.log(`🗺️ Map initializing with center: ${initialCenter}, satellite: ${initialSatellite}`);
     
     this.map = new MapLibreMap({
       container: 'map',
@@ -32,8 +40,8 @@ class SatelliteTracker3D {
         sources: {},
         layers: []
       },
-      center: [0, 0], // Always start at global view
-      zoom: this.initialZoom,
+      center: initialCenter,
+      zoom: initialSatellite ? 2 : this.initialZoom, // Start at global zoom if satellite specified
       pitch: initialPitch, // Use pitch from URL
       bearing: initialBearing, // Use bearing from URL
       attributionControl: false, // Disable default attribution control to avoid duplicates
@@ -246,8 +254,13 @@ class SatelliteTracker3D {
             // Check if satellite exists before trying to follow it
             const satellites = this.satelliteTracker.getSatellites();
             if (satellites.has(satelliteToTrack)) {
-              // Preserve the zoom level from URL when following satellite
-              this.satelliteTracker.followSatellite(satelliteToTrack, false, this.initialZoom);
+              // Use zoom, pitch, and bearing from URL for smooth flyTo animation
+              this.satelliteTracker.followSatelliteWithAnimation(
+                satelliteToTrack, 
+                this.initialZoom,
+                this.urlState.getInitialPitch(),
+                this.urlState.getInitialBearing()
+              );
             } else {
               console.warn(`⚠️ Satellite not found: ${satelliteToTrack}. Available satellites:`, Array.from(satellites.keys()));
               // Remove invalid satellite from URL
@@ -275,6 +288,7 @@ class SatelliteTracker3D {
     const pitch = this.map.getPitch();
     const bearing = this.map.getBearing();
     const followingSatellite = this.satelliteTracker.getFollowingSatellite();
+    
     this.urlState.updateURL(zoom, followingSatellite, pitch, bearing);
   }
 
