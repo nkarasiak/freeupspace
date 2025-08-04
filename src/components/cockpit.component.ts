@@ -101,11 +101,9 @@ export class CockpitComponent {
     
     // Close dropdown on Escape key
     document.addEventListener('keydown', (e) => {
-      console.log('CockpitComponent keydown:', e.key, 'activeDropdown:', activeDropdown?.id);
       if (e.key === 'Escape') {
         // Check if search dropdown is active
         const searchContent = document.getElementById('search-content');
-        console.log('Search content active:', searchContent?.classList.contains('active'));
         if (searchContent?.classList.contains('active')) {
           const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
           closeDropdown(searchContent, trackingItem as HTMLElement);
@@ -124,11 +122,9 @@ export class CockpitComponent {
     
     // Listen for search dropdown close events
     document.addEventListener('closeSearchDropdown', () => {
-      console.log('Received closeSearchDropdown event');
       const searchContent = document.getElementById('search-content');
       if (searchContent && activeDropdown === searchContent) {
         activeDropdown = null;
-        console.log('Reset activeDropdown to null');
       }
     });
   }

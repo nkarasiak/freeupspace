@@ -161,10 +161,8 @@ export class SatelliteDataFetcher {
           if (expiry > now) {
             this.cache.set(group, data);
             this.cacheExpiry.set(group, expiry);
-            console.log(`📁 Loaded cached data for ${group} from localStorage (${data.length} satellites)`);
           } else {
             localStorage.removeItem(key);
-            console.log(`🗑️ Removed expired cache for ${group}`);
           }
         }
       }
@@ -186,7 +184,6 @@ export class SatelliteDataFetcher {
       };
       
       localStorage.setItem(storageKey, JSON.stringify(storageData));
-      console.log(`💾 Saved cache for ${group} to localStorage`);
     } catch (error) {
       console.warn(`⚠️ Failed to save cache for ${group} to localStorage:`, error);
       
@@ -199,7 +196,6 @@ export class SatelliteDataFetcher {
             expiry,
             timestamp: Date.now()
           }));
-          console.log(`💾 Saved cache for ${group} after cleanup`);
         } catch (retryError) {
           console.error(`❌ Failed to save cache even after cleanup:`, retryError);
         }
@@ -235,7 +231,6 @@ export class SatelliteDataFetcher {
         const group = cacheEntries[i].key.replace(this.STORAGE_PREFIX, '');
         this.cache.delete(group);
         this.cacheExpiry.delete(group);
-        console.log(`🗑️ Removed old cache for ${group}`);
       }
     } catch (error) {
       console.warn('⚠️ Failed to cleanup old cache:', error);
@@ -252,7 +247,6 @@ export class SatelliteDataFetcher {
     
     // Check cache first
     if (this.cache.has(cacheKey) && this.cacheExpiry.get(cacheKey)! > now) {
-      console.log(`📡 Using cached TLE data for ${group}`);
       return this.cache.get(cacheKey)!;
     }
     
@@ -284,11 +278,8 @@ export class SatelliteDataFetcher {
       
       for (const url of urls) {
         try {
-          console.log(`🌐 Trying URL: ${url}`);
-          
           const response = await fetch(url);
           if (!response.ok) {
-            console.log(`⚠️ URL failed (${response.status}): ${url}`);
             continue;
           }
           
@@ -296,14 +287,12 @@ export class SatelliteDataFetcher {
           
           // Skip if response is too small (likely error page)
           if (tleText.length < 100) {
-            console.log(`⚠️ Response too small for ${url}`);
             continue;
           }
           
           const tleData = this.parseTLEData(tleText);
           
           if (tleData.length > 0) {
-            console.log(`✅ Fetched ${tleData.length} satellites from ${url}`);
             
             // Merge with existing data, avoiding duplicates
             const existingIds = new Set(allTleData.map(sat => sat.id));
@@ -323,7 +312,6 @@ export class SatelliteDataFetcher {
           }
           
         } catch (urlError) {
-          console.log(`⚠️ Error with URL ${url}:`, urlError);
           continue;
         }
       }
@@ -338,7 +326,6 @@ export class SatelliteDataFetcher {
       this.cacheExpiry.set(cacheKey, expiry);
       this.saveCacheToStorage(cacheKey, allTleData, expiry);
       
-      console.log(`✅ Total fetched: ${allTleData.length} satellites from ${group} (${successfulFetches} successful fetches)`);
       return allTleData;
       
     } catch (error) {
@@ -346,7 +333,6 @@ export class SatelliteDataFetcher {
       
       // Return cached data if available, even if expired
       if (this.cache.has(cacheKey)) {
-        console.log(`⚠️ Using expired cache for ${group}`);
         return this.cache.get(cacheKey)!;
       }
       
@@ -472,7 +458,6 @@ export class SatelliteDataFetcher {
       }
     }
     
-    console.log(`🛰️ Total satellites loaded: ${allSatellites.length}`);
     return allSatellites;
   }
   
@@ -481,7 +466,6 @@ export class SatelliteDataFetcher {
    */
   addOverride(satelliteName: string, override: SatelliteOverride) {
     this.overrides.set(satelliteName, override);
-    console.log(`✅ Added override for ${satelliteName}`);
   }
   
   /**
@@ -527,10 +511,8 @@ export class SatelliteDataFetcher {
       for (const key of keys) {
         localStorage.removeItem(key);
       }
-      console.log('🗑️ Satellite data cache cleared from memory and localStorage');
     } catch (error) {
       console.warn('⚠️ Failed to clear localStorage cache:', error);
-      console.log('🗑️ Satellite data cache cleared from memory only');
     }
   }
   

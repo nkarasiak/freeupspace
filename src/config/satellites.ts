@@ -106,6 +106,25 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     dimensions: { length: 10.0, width: 2.4, height: 3.4 },
     image: 'static/images/esa_sentinel1.png'
   },
+    {
+    id: 'sentinel-1b-41456',
+    name: 'Sentinel-1B',
+    type: 'earth-observation',
+    tle1: '1 41456U 16025A   25214.26234567  .00000267  00000-0  62345-4 0  9994',
+    tle2: '2 41456  98.1852 287.6543 0001567  79.0123 282.3456 14.59000000480000',
+    dimensions: { length: 10.0, width: 2.4, height: 3.4 },
+	image: 'static/images/esa_sentinel1.png'
+
+  },
+  {
+    id: 'sentinel-1c-62261',
+    name: 'Sentinel-1C',
+    type: 'earth-observation',
+    tle1: '1 59051U 24036A   25214.27345678  .00000198  00000-0  54321-4 0  9993',
+    tle2: '2 59051  98.1853 47.7654 0001678  80.1234 283.4567 14.59000000080000',
+    dimensions: { length: 10.0, width: 2.4, height: 3.4 },
+	image: 'static/images/esa_sentinel1.png'
+  },
   {
     id: 'sentinel-2a-40697',
     name: 'Sentinel-2A',
@@ -113,9 +132,26 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     tle1: '1 40697U 15028A   25214.31234567  .00000456  00000-0  78901-4 0  9980',
     tle2: '2 40697  98.5692 123.4567 0001234  89.0123 271.1234 14.30000000480000',
     dimensions: { length: 3.7, width: 2.1, height: 2.4 },
-    image: 'static/images/esa_sentinel2.png'
+	image: 'static/images/esa_sentinel2.png'
   },
   {
+    id: 'sentinel-2b-42063',
+    name: 'Sentinel-2B',
+    type: 'earth-observation',
+    tle1: '1 42063U 17013A   25214.32345678  .00000523  00000-0  89012-4 0  9979',
+    tle2: '2 42063  98.5693 234.5678 0001345  90.1234 272.2345 14.30000000380000',
+    dimensions: { length: 3.7, width: 2.1, height: 2.4 },
+	image: 'static/images/esa_sentinel2.png'
+  },
+  {
+    id: 'sentinel-2c-60989',
+    name: 'Sentinel-2C',
+    type: 'earth-observation',
+    tle1: '1 59999U 24077A   25214.33456789  .00000467  00000-0  81234-4 0  9978',
+    tle2: '2 59999  98.5694 345.6789 0001456  91.2345 273.3456 14.30000000180000',
+    dimensions: { length: 3.7, width: 2.1, height: 2.4 },
+	image: 'static/images/esa_sentinel2.png'
+  },  {
     id: 'yam-10',
     name: 'YAM-10 (EarthDaily)',
     type: 'earth-observation',

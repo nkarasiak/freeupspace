@@ -37,7 +37,6 @@ class SatelliteTracker3D {
     // If specific coordinates are provided AND no satellite is specified, use them
     const initialCenter: [number, number] = (!initialSatellite && initialCoordinates) ? initialCoordinates : [0, 0];
     
-    console.log(`🗺️ Map initializing with center: ${initialCenter}, satellite: ${initialSatellite}`);
     
     this.map = new MapLibreMap({
       container: 'map',
@@ -188,9 +187,7 @@ class SatelliteTracker3D {
 
   private setGlobeProjection() {
     try {
-      console.log('🌍 Setting globe projection...');
       this.map.setProjection({ type: 'globe' });
-      console.log('✅ Globe projection enabled');
     } catch (error) {
       console.warn('⚠️ Globe projection not supported, falling back to mercator:', error);
       this.isGlobeMode = false;
@@ -200,16 +197,12 @@ class SatelliteTracker3D {
   private toggleProjection() {
     try {
       if (this.isGlobeMode) {
-        console.log('🗺️ Switching to mercator projection...');
         this.map.setProjection({ type: 'mercator' });
         this.isGlobeMode = false;
-        console.log('✅ Mercator projection enabled');
         this.showMessage('🗺️ Mercator projection enabled', 'info');
       } else {
-        console.log('🌍 Switching to globe projection...');
         this.map.setProjection({ type: 'globe' });
         this.isGlobeMode = true;
-        console.log('✅ Globe projection enabled');
         this.showMessage('🌍 Globe projection enabled', 'info');
       }
     } catch (error) {
@@ -309,7 +302,6 @@ class SatelliteTracker3D {
       
       // Directly set MapLibre GL pitch (bypasses Deck.gl 60° limit)
       this.map.setPitch(pitch);
-      console.log(`🎯 Direct MapLibre pitch set to: ${pitch}°`);
     });
     
     // Update slider when map pitch changes
@@ -357,7 +349,6 @@ class SatelliteTracker3D {
     
     // Don't allow toggling if not tracking any satellite
     if (!isTracking) {
-      console.log('🎯 No satellite being tracked - cannot toggle tracked only mode');
       return;
     }
     
@@ -375,13 +366,11 @@ class SatelliteTracker3D {
       const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya-25544';
       const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
       
-      console.log(`🔍 AUTO-TRACK INIT: satelliteToTrack='${satelliteToTrack}', isDefaultISS=${isDefaultISS}`);
       
       // Check if satellite is in config for instant loading
       const configSatellite = this.satelliteTracker.getSatelliteConfigs().find(sat => sat.id === satelliteToTrack);
       
       if (configSatellite) {
-        console.log(`🚀 INSTANT CONFIG MODE: Loading ${satelliteToTrack} immediately...`);
         
         // Load config satellite immediately (no API dependency)
         const satelliteLoaded = this.satelliteTracker.loadConfigSatelliteById(satelliteToTrack);
@@ -396,7 +385,6 @@ class SatelliteTracker3D {
             const zoomToUse = isDefaultISS ? 5 : this.initialZoom;
             const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
             
-            console.log(`🎯 INSTANT CONFIG TRACK: Starting immediate tracking for ${satelliteToTrack}`);
             
             // Get satellite data to check for default bearing
             const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
@@ -411,9 +399,7 @@ class SatelliteTracker3D {
             
             // Load all other satellites in background (non-blocking)
             setTimeout(async () => {
-              console.log('🌍 Loading additional satellites in background...');
               await this.satelliteTracker.initialize();
-              console.log('✅ All satellites loaded');
             }, 1000);
             
           }, 100); // Very short delay for satellite tracking
@@ -426,7 +412,6 @@ class SatelliteTracker3D {
       } else {
         // For non-ISS satellites, use the full initialization
         setTimeout(async () => {
-          console.log(`🔍 FULL INIT MODE: Loading all satellites for '${satelliteToTrack}'`);
           
           // Initialize satellite tracker
           await this.satelliteTracker.initialize();
@@ -434,15 +419,12 @@ class SatelliteTracker3D {
           // Try to track satellite from URL (config satellites are now loaded)
           if (satelliteToTrack) {
             const satellites = this.satelliteTracker.getSatellites();
-            console.log(`🔍 AUTO-TRACK: Looking for '${satelliteToTrack}', found ${satellites.size} satellites, has target: ${satellites.has(satelliteToTrack)}`);
             if (satellites.has(satelliteToTrack)) {
               const zoomToUse = this.initialZoom;
               const pitchToUse = this.urlState.getInitialPitch();
               
-              console.log(`🎯 AUTO-TRACK: Starting tracking for ${satelliteToTrack}`);
               // Add small delay to ensure map and layers are fully ready
               setTimeout(() => {
-                console.log(`🎯 AUTO-TRACK: Executing followSatelliteWithAnimation for ${satelliteToTrack}`);
                 
                 // Get satellite data to check for default bearing
                 const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
@@ -461,7 +443,6 @@ class SatelliteTracker3D {
                 this.isInitializing = false;
               }, 4000);
             } else {
-              console.log(`❌ AUTO-TRACK: Satellite '${satelliteToTrack}' not found in ${satellites.size} loaded satellites`);
               this.urlState.removeInvalidSatellite();
               setTimeout(() => {
                 this.urlState.setInitializing(false);
@@ -516,17 +497,14 @@ class SatelliteTracker3D {
     // Set up command palette callbacks
     this.commandPalette.setCallbacks({
       onTrackSatellite: (satelliteId: string) => {
-        console.log(`🎯 Command palette: Tracking satellite ${satelliteId}`);
         this.satelliteTracker.followSatellite(satelliteId);
       },
       onToggleNight: () => {
-        console.log('🌙 Command palette: Switching to night mode');
         if (this.isDayMode) {
           this.toggleBasemap();
         }
       },
       onToggleDay: () => {
-        console.log('☀️ Command palette: Switching to day mode');
         if (!this.isDayMode) {
           this.toggleBasemap();
         }
@@ -538,33 +516,11 @@ class SatelliteTracker3D {
   }
 
   private applyPitchOverride() {
-    console.log('🔧 Applying pitch override to enable 85° pitch...');
-    
     const map = this.map as any;
     
     try {
-      // Method 1: Standard API
+      // Standard API - this is the correct way to set max pitch
       map.setMaxPitch(85);
-      console.log('✅ setMaxPitch(85) called');
-      
-      // Method 2: Transform override
-      if (map.transform) {
-        map.transform.maxPitch = 85;
-        map.transform._maxPitch = 85;
-        console.log('✅ transform.maxPitch set to 85');
-      }
-      
-      // Method 3: Internal properties
-      map._maxPitch = 85;
-      console.log('✅ _maxPitch set to 85');
-      
-      // Method 4: Force update
-      if (map._update) {
-        map._update();
-        console.log('✅ _update() called');
-      }
-      
-      console.log('📐 Pitch override complete. MaxPitch:', map.getMaxPitch());
       
     } catch (error) {
       console.error('❌ Error during maxPitch override:', error);
@@ -575,7 +531,6 @@ class SatelliteTracker3D {
     let isDragging = false;
     let lastY = 0;
     
-    console.log('🔧 Setting up simple pitch control on document...');
     
     // Attach to document to catch all events
     document.addEventListener('mousedown', (e) => {
@@ -583,7 +538,6 @@ class SatelliteTracker3D {
         isDragging = true;
         lastY = e.clientY;
         e.preventDefault();
-        console.log('🖱️ Ctrl+mousedown: Starting pitch control');
       }
     });
     
@@ -594,7 +548,6 @@ class SatelliteTracker3D {
         const newPitch = Math.min(85, Math.max(0, currentPitch + deltaY * 0.3));
         
         this.map.setPitch(newPitch);
-        console.log(`🎯 Pitch: ${currentPitch.toFixed(1)}° → ${newPitch.toFixed(1)}°`);
         
         lastY = e.clientY;
         e.preventDefault();
@@ -603,12 +556,10 @@ class SatelliteTracker3D {
     
     document.addEventListener('mouseup', () => {
       if (isDragging) {
-        console.log('🖱️ Mouseup - ending pitch control');
         isDragging = false;
       }
     });
     
-    console.log('🖱️ Document-level Ctrl+drag pitch control enabled');
   }
 
   private updateUI() {

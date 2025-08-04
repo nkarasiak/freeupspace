@@ -75,7 +75,6 @@ export class SearchComponent {
   }
 
   private handleKeydown(e: KeyboardEvent): void {
-    console.log('SearchComponent handleKeydown:', e.key, 'active element:', document.activeElement?.id);
     
     if (!this.searchResults) return;
     
@@ -186,7 +185,6 @@ export class SearchComponent {
   }
 
   private selectSatelliteById(satelliteId: string, satelliteName: string): void {
-    console.log('selectSatelliteById called:', satelliteId, satelliteName);
     const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
     if (searchInput) {
       searchInput.value = satelliteName;
@@ -217,17 +215,13 @@ export class SearchComponent {
   }
 
   private closeSearchDropdown(): void {
-    console.log('closeSearchDropdown called');
     const searchContent = document.getElementById('search-content');
     const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
     
-    console.log('searchContent:', searchContent, 'trackingItem:', trackingItem);
-    console.log('searchContent active before:', searchContent?.classList.contains('active'));
     
     if (searchContent && trackingItem) {
       searchContent.classList.remove('active');
       trackingItem.classList.remove('active');
-      console.log('searchContent active after:', searchContent?.classList.contains('active'));
     }
     
     // Also trigger the cockpit component's close mechanism
@@ -236,7 +230,6 @@ export class SearchComponent {
   }
 
   private forceCloseDropdown(): void {
-    console.log('forceCloseDropdown called');
     
     // Force remove active class from all possible elements
     const searchContent = document.getElementById('search-content');

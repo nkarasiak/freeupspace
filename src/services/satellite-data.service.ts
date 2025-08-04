@@ -98,7 +98,6 @@ export class SatelliteDataService {
           };
           
           this.satellites.set(config.id, satelliteData);
-          console.log(`✅ Loaded config satellite ${satelliteId}`);
           return true;
         }
       } catch (error) {

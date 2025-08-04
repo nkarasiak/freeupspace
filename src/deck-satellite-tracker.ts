@@ -123,12 +123,7 @@ export class DeckSatelliteTracker {
     this.onTrackingChangeCallback = callback;
   }
 
-  private onSatelliteClickCallback?: (satelliteId: string) => void;
   private onStopFollowingCallback?: () => void;
-
-  setOnSatelliteClickCallback(callback: (satelliteId: string) => void) {
-    this.onSatelliteClickCallback = callback;
-  }
 
   setOnStopFollowingCallback(callback: () => void) {
     this.onStopFollowingCallback = callback;
@@ -172,7 +167,6 @@ export class DeckSatelliteTracker {
       }
     });
     
-    console.log('🔧 Simplified pitch control: MapLibre handles pitch, Deck.gl handles rendering');
   }
 
   private initializeDeck() {
@@ -269,13 +263,11 @@ export class DeckSatelliteTracker {
 
   // Load only ISS immediately for instant tracking
   loadISSOnly() {
-    console.log('🚀 Loading ISS immediately for instant tracking...');
     return this.loadConfigSatelliteById('iss-zarya-25544');
   }
 
   // Load any satellite from config immediately for instant tracking
   loadConfigSatelliteById(satelliteId: string) {
-    console.log(`🚀 Loading satellite ${satelliteId} immediately for instant tracking...`);
     const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === satelliteId);
     
     if (satelliteConfig) {
@@ -297,7 +289,6 @@ export class DeckSatelliteTracker {
             this.createDotIcon(satelliteConfig.id);
           }
           
-          console.log(`✅ ${satelliteId} loaded and ready for tracking`);
           return true;
         }
       } catch (error) {
@@ -329,7 +320,6 @@ export class DeckSatelliteTracker {
   private initializeWorker() {
     // Disable worker for now due to module loading issues with importScripts
     // All calculations will use main thread fallback which works reliably
-    console.log('📡 Using main thread satellite calculations (worker disabled for compatibility)');
     this.satelliteWorker = null;
   }
 
@@ -357,7 +347,6 @@ export class DeckSatelliteTracker {
   }
 
   private async loadSampleSatellites() {
-    console.log('🚀 Loading satellites from external sources...');
     
     try {
       // Load satellites from multiple sources - using only VALID Celestrak group names
@@ -386,7 +375,6 @@ export class DeckSatelliteTracker {
       // Load each group completely - no artificial limits
       for (const groupName of satelliteGroups) {
         try {
-          console.log(`🛰️ Loading ALL ${groupName} satellites...`);
           
           const groupSatellites = await this.satelliteDataFetcher.fetchSatellites([groupName]);
           let groupLoadedCount = 0;
@@ -420,7 +408,6 @@ export class DeckSatelliteTracker {
             }
           }
           
-          console.log(`✅ Loaded ${groupLoadedCount} ${groupName} satellites`);
           
         } catch (error) {
           console.error(`❌ Failed to load ${groupName} satellites:`, error);
@@ -428,7 +415,6 @@ export class DeckSatelliteTracker {
       }
       
       // Always load important static satellites (YAM-10, etc.) regardless of external sources
-      console.log('🔧 Loading static satellites with special configurations...');
       let staticLoadedCount = 0;
       
       SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
@@ -474,9 +460,6 @@ export class DeckSatelliteTracker {
           }
         }
       });
-      
-      console.log(`✅ Total loaded: ${totalLoadedCount + staticLoadedCount} satellites from all sources`);
-      
     } catch (error) {
       console.error('❌ Failed to load dynamic satellites, falling back to static config:', error);
       
@@ -502,12 +485,11 @@ export class DeckSatelliteTracker {
         }
       });
       
-      console.log(`✅ Fallback: Loaded ${this.satellites.size} satellites from static config`);
+      console.log(`🛰️ Loaded ${this.satellites.size} satellites total`);
     }
   }
 
   private loadSatelliteIcons() {
-    console.log(`🎨 loadSatelliteIcons() called with ${this.satellites.size} total satellites`);
     // Find all satellites with images from loaded satellites
     const satellitesWithImages = Array.from(this.satellites.values()).filter(sat => sat.image);
     
@@ -521,14 +503,7 @@ export class DeckSatelliteTracker {
       this.createDotIcon(sat.id);
     });
     
-    console.log(`🖼️ Loading icons for ${satellitesWithImages.length} satellites with images`);
-    console.log(`🔵 Creating dot icons for ${satellitesWithoutImages.length} satellites without images`);
     
-    // Debug Landsat satellites specifically
-    const landsat8 = Array.from(this.satellites.values()).find(sat => sat.id.includes('landsat-8'));
-    const landsat9 = Array.from(this.satellites.values()).find(sat => sat.id.includes('landsat-9'));
-    console.log('🔍 Landsat 8 debug:', landsat8 ? { id: landsat8.id, name: landsat8.name, image: landsat8.image } : 'NOT FOUND');
-    console.log('🔍 Landsat 9 debug:', landsat9 ? { id: landsat9.id, name: landsat9.name, image: landsat9.image } : 'NOT FOUND');
   }
 
   private loadSatelliteIcon(satelliteId: string, imageUrl: string) {    
@@ -1048,10 +1023,7 @@ export class DeckSatelliteTracker {
         stroked: true,
         filled: true,
         radiusUnits: 'pixels',
-        pickable: true,
-        onClick: (info) => {
-          this.handleSatelliteClick(info);
-        }
+        pickable: false
       })
     ];
 
@@ -1065,17 +1037,14 @@ export class DeckSatelliteTracker {
             new IconLayer({
               id: `${satelliteId}-icon`,
               data: satelliteData,
-              pickable: true,
+              pickable: false,
               iconAtlas: iconMapping.atlas,
               iconMapping: iconMapping.mapping,
               getIcon: (d: any) => d.icon,
               sizeScale: 1,
               getPosition: (d: any) => d.position,
               getSize: (d: any) => d.size,
-              getColor: [255, 255, 255, 255],
-              onClick: (info) => {
-                this.handleSatelliteClick(info);
-              }
+              getColor: [255, 255, 255, 255]
             })
           );
         }
@@ -1107,22 +1076,6 @@ export class DeckSatelliteTracker {
     // Only individual satellite clicks should change tracking
   }
 
-  private handleSatelliteClick(info: any) {
-    if (info.object) {
-      const satelliteId = info.object.id;
-      const satellite = this.satellites.get(satelliteId);
-      if (satellite) {
-        console.log('🖱️ SATELLITE CLICKED:', satelliteId, 'Current zoom:', this.map.getZoom());
-        this.followSatellite(satelliteId);
-        this.showSatelliteInfo(satellite);
-        
-        // Call the satellite click callback if set
-        if (this.onSatelliteClickCallback) {
-          this.onSatelliteClickCallback(satelliteId);
-        }
-      }
-    }
-  }
 
   followSatellite(satelliteId: string, preserveZoom: boolean = false, explicitZoom?: number) {
     this.followingSatellite = satelliteId;
@@ -1133,16 +1086,7 @@ export class DeckSatelliteTracker {
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
-      let targetZoom: number;
-      if (explicitZoom !== undefined) {
-        targetZoom = explicitZoom;
-      } else {
-        targetZoom = preserveZoom ? this.map.getZoom() : 5; // Always zoom to level 5 when selecting a satellite
-      }
-      
       console.log('🚀 Starting satellite tracking for:', satellite.name);
-      console.log('🎯 Target zoom:', targetZoom, 'preserveZoom:', preserveZoom, 'explicitZoom:', explicitZoom);
-      console.log('📏 Current zoom before flyTo:', this.map.getZoom());
       
       // Stop all existing tracking to avoid interference
       this.stopSimpleTracking();
@@ -1171,21 +1115,23 @@ export class DeckSatelliteTracker {
       
       // Calculate appropriate zoom for this altitude
       let adjustedZoom;
-      if (satelliteAltitudeKm > 700) {
-        adjustedZoom = 3.5; // Fixed zoom for ultra-high satellites
-      } else if (satelliteAltitudeKm > 600) {
-        adjustedZoom = 4.0; // Fixed zoom for very high satellites like YAM-10
-      } else if (satelliteAltitudeKm > 500) {
-        adjustedZoom = 4.5; // Fixed zoom for high satellites
-      } else if (satelliteAltitudeKm > 400) {
-        adjustedZoom = 5.0; // Fixed zoom for medium satellites
+      if (explicitZoom !== undefined) {
+        adjustedZoom = explicitZoom;
+      } else if (preserveZoom) {
+        adjustedZoom = this.map.getZoom();
       } else {
-        adjustedZoom = 5.5; // Fixed zoom for lower satellites
+        if (satelliteAltitudeKm > 700) {
+          adjustedZoom = 3.5; // Fixed zoom for ultra-high satellites
+        } else if (satelliteAltitudeKm > 600) {
+          adjustedZoom = 4.0; // Fixed zoom for very high satellites like YAM-10
+        } else if (satelliteAltitudeKm > 500) {
+          adjustedZoom = 4.5; // Fixed zoom for high satellites
+        } else if (satelliteAltitudeKm > 400) {
+          adjustedZoom = 5.0; // Fixed zoom for medium satellites
+        } else {
+          adjustedZoom = 5.5; // Fixed zoom for lower satellites
+        }
       }
-      
-      console.log(`📹 Positioning camera to view satellite at ${satelliteAltitudeKm}km altitude`);
-      console.log(`📍 Camera: [${cameraLat.toFixed(4)}, ${cameraLng.toFixed(4)}] looking at satellite [${satelliteLat.toFixed(4)}, ${satelliteLng.toFixed(4)}]`);
-      
       this.map.flyTo({
         center: [cameraLng, cameraLat],
         zoom: adjustedZoom,
@@ -1197,15 +1143,12 @@ export class DeckSatelliteTracker {
       
       // Verify zoom after flyTo starts
       setTimeout(() => {
-        console.log('📏 Zoom after flyTo starts:', this.map.getZoom());
       }, 100);
       
       // Start smooth tracking after a delay to let flyTo complete
       setTimeout(() => {
-        console.log('🎬 Starting ultra-smooth tracking after flyTo');
         this.startUltraSmoothTracking(satellite);
-        console.log('📊 Smooth tracker status:', this.smoothTracker.isTracking());
-      }, 2100);
+      }, 1000);
       
       this.showMessage(`🎯 Following ${satellite.name}`, 'success');
       this.updateLayers(true); // Update layers to show orbit path if enabled
@@ -1218,20 +1161,13 @@ export class DeckSatelliteTracker {
   }
 
   followSatelliteWithAnimation(satelliteId: string, targetZoom: number, targetPitch: number, targetBearing: number) {
-    console.log(`🔍 followSatelliteWithAnimation called for: ${satelliteId}`);
     this.followingSatellite = satelliteId;
     // Reset tracked satellite size when following a new satellite
     this.trackedSatelliteSizeMultiplier = 1.0;
     // Enable "show tracked satellite only" by default when tracking starts
     this.showTrackedSatelliteOnly = true;
     const satellite = this.satellites.get(satelliteId);
-    console.log(`🔍 Satellite found: ${satellite ? 'YES' : 'NO'}, total satellites: ${this.satellites.size}`);
-    
     if (satellite) {
-      console.log(`🔍 INSIDE IF BLOCK - about to start animation`);
-      console.log(`🛰️ Flying to ${satellite.name} with animation - zoom: ${targetZoom}, pitch: ${targetPitch}°, bearing: ${targetBearing}°`);
-      console.log('📏 Current zoom before flyToAnimation:', this.map.getZoom());
-      
       // Stop all existing tracking to avoid interference
       this.stopSimpleTracking();
       this.smoothTracker.stopTracking();
@@ -1251,26 +1187,11 @@ export class DeckSatelliteTracker {
       const cameraLat = satelliteLat - latOffsetDegrees;
       const cameraLng = satelliteLng;
       
-      // Calculate appropriate zoom for this altitude
-      let adjustedZoom;
-      if (satelliteAltitudeKm > 700) {
-        adjustedZoom = 3.5;
-      } else if (satelliteAltitudeKm > 600) {
-        adjustedZoom = 4.0;
-      } else if (satelliteAltitudeKm > 500) {
-        adjustedZoom = 4.5;
-      } else if (satelliteAltitudeKm > 400) {
-        adjustedZoom = 5.0;
-      } else {
-        adjustedZoom = 5.5;
-      }
-      
-      console.log(`📹 Animation: Positioning camera to view satellite at ${satelliteAltitudeKm}km altitude`);
-      
+      // Use the provided target zoom
       // Use map.flyTo with proper completion callback
       this.map.flyTo({
         center: [cameraLng, cameraLat],
-        zoom: adjustedZoom,
+        zoom: targetZoom,
         pitch: targetPitch,
         bearing: targetBearing,
         duration: 3000,
@@ -1280,7 +1201,6 @@ export class DeckSatelliteTracker {
       // Listen for flyTo completion
       const onFlyToComplete = () => {
         this.map.off('moveend', onFlyToComplete);
-        console.log('🎬 Camera positioned with animation, ultra-smooth tracking active');
         this.startUltraSmoothTracking(satellite);
         
         // Notify about tracking change AFTER animation completes
@@ -1330,7 +1250,7 @@ export class DeckSatelliteTracker {
 
   // Start ultra-smooth tracking for video-like performance
   private startUltraSmoothTracking(satellite: SatelliteData) {
-    console.log(`🎬 Starting ultra-smooth tracking for ${satellite.name}`);
+    console.log(`🎬 Starting tracking for ${satellite.name}`);
     
     // Stop any existing tracking
     this.stopSimpleTracking();
@@ -1362,10 +1282,7 @@ export class DeckSatelliteTracker {
     const initialPosition = this.smoothTracker.getPredictedPosition();
     if (initialPosition) {
       this.smoothCamera.startSmoothTracking(initialPosition);
-    }
-    
-    console.log(`🚀 Smooth tracking active for ${satellite.name} - 30fps smooth performance`);
-  }
+    }  }
 
 
   // Get smooth interpolated position for a satellite
@@ -1391,43 +1308,6 @@ export class DeckSatelliteTracker {
     return this.followingSatellite;
   }
 
-  private showSatelliteInfo(satellite: SatelliteData) {
-    const followingText = this.followingSatellite === satellite.id ? 
-      '\n\n🎯 FOLLOWING THIS SATELLITE\nClick anywhere on map to stop following' : 
-      '\n\n📍 Click to follow this satellite';
-    
-    const info = `
-      Name: ${satellite.name}
-      Type: ${satellite.type}
-      Dimensions: ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m
-      Altitude: ${satellite.altitude.toFixed(0)} km
-      Velocity: ${satellite.velocity.toFixed(2)} km/s
-      Position: ${satellite.position.lat.toFixed(4)}°, ${satellite.position.lng.toFixed(4)}°${followingText}
-    `;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.style.cssText = `
-      position: fixed;
-      top: 100px;
-      right: 20px;
-      z-index: 2000;
-      padding: 15px;
-      border-radius: 8px;
-      background-color: rgba(0, 100, 255, 0.9);
-      color: white;
-      font-weight: bold;
-      max-width: 320px;
-      white-space: pre-line;
-      font-family: monospace;
-    `;
-    
-    messageDiv.textContent = info;
-    document.body.appendChild(messageDiv);
-    
-    setTimeout(() => {
-      messageDiv.remove();
-    }, 6000);
-  }
 
   private showMessage(message: string, type: 'success' | 'error' | 'warning' | 'info') {
     const messageDiv = document.createElement('div');
@@ -1671,7 +1551,6 @@ export class DeckSatelliteTracker {
         checkbox.addEventListener('change', (e) => {
           const enabled = (e.target as HTMLInputElement).checked;
           this.setSatelliteTypeEnabled(type, enabled);
-          console.log(`🔧 ${type} satellites ${enabled ? 'enabled' : 'disabled'}`);
         });
       }
     });

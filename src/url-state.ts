@@ -2,7 +2,41 @@ export class URLState {
   private isInitializing = true;
 
   constructor() {
-    // Default initialization state
+    // Handle URL rewriting on initialization
+    this.handleUrlRewriting();
+  }
+
+  private handleUrlRewriting() {
+    const path = window.location.pathname;
+    
+    // Handle /tracker/id format
+    const trackerMatch = path.match(/^\/tracker\/([^\/]+)$/);
+    if (trackerMatch) {
+      const satelliteId = decodeURIComponent(trackerMatch[1]);
+      // Rewrite to query parameter format
+      const url = new URL(window.location.href);
+      url.pathname = '/';
+      url.searchParams.set('satellite', satelliteId);
+      window.history.replaceState({}, '', url.toString());
+      return;
+    }
+    
+    // Handle GitHub Pages redirect parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const redirectPath = urlParams.get('redirect');
+    if (redirectPath) {
+      const redirectMatch = redirectPath.match(/^\/tracker\/([^\/]+)$/);
+      if (redirectMatch) {
+        const satelliteId = decodeURIComponent(redirectMatch[1]);
+        // Remove redirect parameter and set satellite parameter
+        urlParams.delete('redirect');
+        urlParams.set('satellite', satelliteId);
+        const url = new URL(window.location.href);
+        url.pathname = '/';
+        url.search = urlParams.toString();
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
   }
 
   setInitializing(state: boolean) {
@@ -25,6 +59,14 @@ export class URLState {
   }
 
   getInitialSatellite(): string | null {
+    // First check if we're on a /tracker/id path
+    const path = window.location.pathname;
+    const trackerMatch = path.match(/^\/tracker\/([^\/]+)$/);
+    if (trackerMatch) {
+      return decodeURIComponent(trackerMatch[1]);
+    }
+    
+    // Fall back to query parameters
     const urlParams = new URLSearchParams(window.location.search);
     // Support both 'satellite' and 'name' parameters for satellite ID
     return urlParams.get('satellite') || urlParams.get('name');
@@ -50,11 +92,30 @@ export class URLState {
     const url = new URL(window.location.href);
     const originalUrl = url.toString();
     
+    let urlChanged = false;
+    
+    // Handle satellite tracking with pretty URLs
+    const currentPath = url.pathname;
+    const isCurrentlyTrackerPath = currentPath.match(/^\/tracker\/([^\/]+)$/);
+    const currentSatellite = isCurrentlyTrackerPath ? decodeURIComponent(isCurrentlyTrackerPath[1]) : url.searchParams.get('satellite');
+    
+    if (followingSatellite !== currentSatellite) {
+      if (followingSatellite) {
+        // Use pretty URL format /tracker/id
+        url.pathname = `/tracker/${encodeURIComponent(followingSatellite)}`;
+      } else {
+        // No satellite tracking, go back to home
+        url.pathname = '/';
+      }
+      // Clear satellite query parameter when using path-based routing
+      url.searchParams.delete('satellite');
+      urlChanged = true;
+    }
+    
+    // For parameters like zoom, pitch, bearing, use query strings
     // Always remove x,y coordinates from URL (don't store them)
     url.searchParams.delete('x');
     url.searchParams.delete('y');
-    
-    let urlChanged = false;
     
     // Update zoom only if significantly different (increased threshold)
     const currentUrlZoomStr = url.searchParams.get('zoom');
@@ -101,26 +162,18 @@ export class URLState {
       }
     }
     
-    // Update satellite tracking
-    const currentSatellite = url.searchParams.get('satellite');
-    if (followingSatellite !== currentSatellite) {
-      if (followingSatellite) {
-        url.searchParams.set('satellite', followingSatellite);
-      } else {
-        url.searchParams.delete('satellite');
-      }
-      urlChanged = true;
-    }
-    
     // Only update URL if something actually changed
     if (urlChanged && url.toString() !== originalUrl) {
-      console.log(`🔄 Updating URL: ${originalUrl} -> ${url.toString()}`);
       window.history.replaceState({}, '', url.toString());
     }
   }
 
   removeInvalidSatellite() {
     const url = new URL(window.location.href);
+    // If we're on a tracker path, go back to home
+    if (url.pathname.match(/^\/tracker\/([^\/]+)$/)) {
+      url.pathname = '/';
+    }
     url.searchParams.delete('satellite');
     window.history.replaceState({}, '', url.toString());
   }
@@ -133,13 +186,16 @@ export class URLState {
   }
 
   navigateToSatellite(satelliteId: string) {
+    // Use pretty URL format /tracker/id
     const url = new URL(window.location.href);
-    url.searchParams.set('satellite', satelliteId);
+    url.pathname = `/tracker/${encodeURIComponent(satelliteId)}`;
+    url.search = ''; // Clear query parameters
     window.history.pushState({}, '', url.toString());
   }
 
   navigateToHome() {
     const url = new URL(window.location.href);
+    url.pathname = '/';
     url.searchParams.delete('satellite');
     window.history.pushState({}, '', url.toString());
   }

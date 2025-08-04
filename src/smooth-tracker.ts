@@ -42,7 +42,6 @@ export class SmoothTracker {
 
   // Start tracking a satellite with ultra-smooth prediction
   startTracking(satelliteId: string, tle1: string, tle2: string): void {
-    console.log(`🎯 Starting ultra-smooth tracking for ${satelliteId}`);
     
     // Stop any existing tracking
     this.stopTracking();
@@ -79,7 +78,6 @@ export class SmoothTracker {
     // Start ultra-high frequency updates
     this.startHighFrequencyUpdates();
     
-    console.log(`🚀 Tracking initialized - Orbit period: ${(orbitPeriod / 60000).toFixed(1)} minutes`);
   }
 
   // Stop tracking and clean up
@@ -223,14 +221,6 @@ export class SmoothTracker {
       const position = this.getPredictedPosition(now);
       
       if (position && this.onPositionUpdate) {
-        // Debug logging
-        if (Math.random() < 0.005) { // 0.5% chance to avoid spam
-          console.log('🎯 Smooth tracker update:', {
-            satellite: this.trackingState.satelliteId,
-            position: [position.longitude.toFixed(6), position.latitude.toFixed(6)],
-            confidence: position.confidence.toFixed(3)
-          });
-        }
         this.onPositionUpdate(position);
       }
       
@@ -241,7 +231,6 @@ export class SmoothTracker {
       
     }, this.UPDATE_FREQUENCY);
     
-    console.log(`🎬 Started 30fps tracking updates (every ${this.UPDATE_FREQUENCY}ms)`);
   }
 
   // Refresh tracking data with new exact calculation

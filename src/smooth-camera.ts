@@ -37,12 +37,10 @@ export class SmoothCamera {
     this.map = map;
     this.lastCameraState = this.getCurrentCameraState();
     
-    console.log('📹 Smooth camera controller initialized for video-like tracking');
   }
 
   // Start smooth tracking of a position
   startSmoothTracking(initialPosition: PredictivePosition): void {
-    console.log('🎬 Starting ultra-smooth camera tracking');
     
     this.targetPosition = initialPosition;
     this.isSmoothing = true;
@@ -58,7 +56,6 @@ export class SmoothCamera {
 
   // Stop smooth tracking
   stopSmoothTracking(): void {
-    console.log('🛑 Stopping smooth camera tracking');
     
     this.isSmoothing = false;
     this.targetPosition = null;
@@ -249,13 +246,11 @@ export class SmoothCamera {
   // Enable/disable adaptive smoothing
   setAdaptiveSmoothing(enabled: boolean): void {
     this.adaptiveSmoothingEnabled = enabled;
-    console.log(`🎛️ Adaptive smoothing ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   // Enable/disable velocity-based prediction
   setVelocityBasedSmoothing(enabled: boolean): void {
     this.velocityBasedSmoothing = enabled;
-    console.log(`🚀 Velocity-based smoothing ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   // Get current tracking status

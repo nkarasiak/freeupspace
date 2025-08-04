@@ -15,13 +15,25 @@
         
         // Only redirect if this is a path that looks like our app routes
         if (path !== '/' && path !== '/404.html') {
-          // Store the original path and redirect to index.html
-          const redirectUrl = '/?' + 
-            'redirect=' + encodeURIComponent(path) + 
-            (search ? '&' + search.slice(1) : '') + 
-            (hash ? '#' + hash.slice(1) : '');
-          
-          window.location.replace(redirectUrl);
+          // Check if this is a /tracker/id path
+          const trackerMatch = path.match(/^\/tracker\/([^\/]+)$/);
+          if (trackerMatch) {
+            // Redirect directly to index.html with the tracker path preserved
+            const redirectUrl = '/?' + 
+              'redirect=' + encodeURIComponent(path) + 
+              (search ? '&' + search.slice(1) : '') + 
+              (hash ? '#' + hash.slice(1) : '');
+            
+            window.location.replace(redirectUrl);
+          } else {
+            // For other paths, store the original path and redirect to index.html
+            const redirectUrl = '/?' + 
+              'redirect=' + encodeURIComponent(path) + 
+              (search ? '&' + search.slice(1) : '') + 
+              (hash ? '#' + hash.slice(1) : '');
+            
+            window.location.replace(redirectUrl);
+          }
         }
       })();
     </script>
