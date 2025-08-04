@@ -69,7 +69,7 @@ export class SearchComponent {
         (satellite.shortname && satellite.shortname.toLowerCase().includes(query)) ||
         (satellite.alternateName && satellite.alternateName.toLowerCase().includes(query))
       )
-      .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
+.sort((a, b) => (a.alternateName || a.name || a.id).localeCompare(b.alternateName || b.name || b.id))
       .slice(0, 10);
     
     this.displayResults(matches, this.followingSatellite);
@@ -148,24 +148,26 @@ export class SearchComponent {
     searchResults.innerHTML = '';
     this.selectedIndex = -1;
     
-    matches.forEach((satellite) => {
+    matches.forEach((satellite, index) => {
       const resultDiv = document.createElement('div');
-      resultDiv.className = 'search-result';
+      resultDiv.className = `search-result command-item ${index === 0 ? 'selected' : ''}`;
       if (followingSatellite === satellite.id) {
         resultDiv.className += ' following';
       }
       
       // Store satellite data for keyboard selection
+      const displayName = satellite.alternateName || satellite.name || satellite.id;
       resultDiv.dataset.satelliteId = satellite.id;
-      resultDiv.dataset.satelliteName = satellite.name || satellite.id;
+      resultDiv.dataset.satelliteName = displayName;
       
       resultDiv.innerHTML = `
-        <div><strong>${satellite.name || satellite.id}</strong></div>
-        <div style="font-size: 11px; color: #ccc;">
-          ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | Alt: ${satellite.altitude.toFixed(0)}km
-        </div>
-        <div style="font-size: 10px; color: #aaa;">
-          ${satellite.position.lat.toFixed(2)}°, ${satellite.position.lng.toFixed(2)}°
+        <div class="command-icon">🛰️</div>
+        <div class="command-text">
+          <div class="command-title">${displayName}</div>
+          <div class="command-description">Track ${displayName} • Alt: ${satellite.altitude.toFixed(0)}km</div>
+          <div style="font-size: 10px; color: #aaa; margin-top: 2px;">
+            ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | ${satellite.position.lat.toFixed(2)}°, ${satellite.position.lng.toFixed(2)}°
+          </div>
         </div>
       `;
       
@@ -177,12 +179,22 @@ export class SearchComponent {
     });
     
     if (matches.length === 0) {
-      searchResults.innerHTML = '<div style="padding: 8px; color: #999;">No satellites found</div>';
+      const noResults = document.createElement('div');
+      noResults.className = 'command-item';
+      noResults.innerHTML = `
+        <div class="command-icon">❌</div>
+        <div class="command-text">
+          <div class="command-title">No satellites found</div>
+          <div class="command-description">Try a different search term</div>
+        </div>
+      `;
+      searchResults.appendChild(noResults);
     }
   }
 
   private selectSatellite(satellite: SatelliteData): void {
-    this.selectSatelliteById(satellite.id, satellite.name);
+    const displayName = satellite.alternateName || satellite.name || satellite.id;
+    this.selectSatelliteById(satellite.id, displayName);
   }
 
   private selectSatelliteById(satelliteId: string, satelliteName: string): void {

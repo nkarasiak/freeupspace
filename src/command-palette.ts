@@ -209,7 +209,7 @@ export class CommandPalette {
         if (satellite) {
           matchingSatellites.push({
             id,
-            name: satellite.shortname || satellite.name || id
+            name: satellite.shortname || satellite.alternateName || satellite.name || id
           });
         }
       });
@@ -221,7 +221,7 @@ export class CommandPalette {
         if (!popularSatellites.includes(id)) {
           matchingSatellites.push({
             id,
-            name: satellite.shortname || satellite.name || id
+            name: satellite.shortname || satellite.alternateName || satellite.name || id
           });
           count++;
         }
@@ -237,7 +237,7 @@ export class CommandPalette {
         if (matchesName || matchesShortname || matchesAlternateName || matchesId) {
           matchingSatellites.push({
             id, 
-            name: satellite.shortname || satellite.name || id || id
+            name: satellite.shortname || satellite.alternateName || satellite.name || id
           });
         }
       });
@@ -280,11 +280,16 @@ export class CommandPalette {
     satellites.forEach((satellite, index) => {
       const item = document.createElement('div');
       item.className = `command-item ${index === 0 ? 'selected' : ''}`;
+      
+      // Get satellite data for altitude info
+      const satelliteData = this.getSatellites?.()?.get(satellite.id);
+      const altitudeInfo = satelliteData ? ` • Alt: ${satelliteData.altitude.toFixed(0)}km` : '';
+      
       item.innerHTML = `
         <div class="command-icon">🛰️</div>
         <div class="command-text">
-          <div class="command-title">${satellite.name || satellite.id}</div>
-          <div class="command-description">Track ${satellite.name || satellite.id}</div>
+          <div class="command-title">${satellite.name}</div>
+          <div class="command-description">Track ${satellite.name}${altitudeInfo}</div>
         </div>
       `;
       

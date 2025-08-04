@@ -17,29 +17,17 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     id: 'aqua',
     alternateName: 'MODIS Aqua',
     image: 'static/images/nasa_modis_aqua.png',
-    scaleFactor: 0.5
   },
 
   // NASA Landsat satellites
   {
     id: 'landsat-8',
-    alternateName: 'Landsat Data Continuity Mission',
     image: 'static/images/nasa_landsat8.png'
   },
   {
     id: 'landsat-9',
-    alternateName: 'Landsat Next',
+    alternateName: 'Landsat 9 | Next',
     image: 'static/images/nasa_landsat9.png'
-  },
-
-  // Starlink communication satellites
-  {
-    id: 'starlink-1007',
-    image: 'static/images/starlink.png'
-  },
-  {
-    id: 'starlink-1019',
-    image: 'static/images/starlink.png'
   },
 
   // Sentinel Earth observation constellation

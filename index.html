@@ -743,7 +743,7 @@
         <div class="banner-separator"></div>
         
         <!-- Tracking (Clickable) -->
-        <div class="banner-item tracking" data-section="search" title="Click to change satellite">
+        <div class="banner-item tracking" data-section="search" title="Click to search satellites (or press /)">
           <span class="banner-icon">🎯</span>
           <span class="banner-label">Tracking</span>
           <span class="tracking-name" id="tracked-name">No satellite selected</span>
@@ -759,8 +759,8 @@
         </div>
       </div>
       
-      <!-- Search Dropdown (Hidden by default) -->
-      <div class="section-content" id="search-content">
+      <!-- Search Dropdown (Replaced with Command Palette) -->
+      <div class="section-content" id="search-content" style="display: none;">
         <input type="text" id="satellite-search" placeholder="Search satellites..." />
         <div id="search-results"></div>
       </div>
@@ -828,33 +828,31 @@
           });
         });
 
-        // Handle banner tracking item click
+        // Handle banner tracking item click - open command palette
         const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
         if (trackingItem) {
           trackingItem.addEventListener('click', function(e) {
             e.stopPropagation();
-            const content = document.getElementById('search-content');
             
-            if (content) {
-              // If this dropdown is already active, close it
-              if (activeDropdown === content) {
-                closeDropdown(content, this);
-                return;
-              }
+            // Close any other open dropdown first
+            closeAllDropdowns();
+            
+            // Open command palette with search functionality
+            const commandPalette = document.getElementById('command-palette');
+            if (commandPalette) {
+              commandPalette.classList.add('active');
               
-              // Close any other open dropdown first
-              closeAllDropdowns();
-              
-              // Open this dropdown
-              content.classList.add('active');
-              this.classList.add('active');
-              activeDropdown = content;
-              
-              // Auto-focus search input
+              // Focus the command input and set it to search mode
               setTimeout(() => {
-                const searchInput = document.getElementById('satellite-search');
-                if (searchInput) {
-                  searchInput.focus();
+                const commandInput = document.getElementById('command-input');
+                if (commandInput) {
+                  commandInput.value = 'track ';
+                  commandInput.focus();
+                  commandInput.setSelectionRange(6, 6); // Position cursor after "track "
+                  
+                  // Trigger input event to show satellite suggestions
+                  const inputEvent = new Event('input', { bubbles: true });
+                  commandInput.dispatchEvent(inputEvent);
                 }
               }, 100);
             }
