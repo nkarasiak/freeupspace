@@ -159,7 +159,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     tle2: '2 64580  97.7488 328.2944 0003140 359.1021   1.0191 14.91676300  6352',
     dimensions: { length: 1.0, width: 0.5, height: 0.3 },
     image: 'static/images/earthdaily_yam10.webp',
-    defaultBearing: 180,
+    defaultBearing: 0,
     scaleFactor: 2.0
   }
 ];
