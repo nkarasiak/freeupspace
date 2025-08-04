@@ -1,0 +1,215 @@
+import { SatelliteData } from '../types/satellite';
+
+export interface SearchCallbacks {
+  onSatelliteSelect: (satelliteId: string) => void;
+}
+
+export class SearchComponent {
+  private callbacks?: SearchCallbacks;
+  private selectedIndex = -1;
+  private searchResults: HTMLDivElement | null = null;
+
+  constructor() {
+    this.setupSearchFunctionality();
+  }
+
+  setCallbacks(callbacks: SearchCallbacks): void {
+    this.callbacks = callbacks;
+  }
+
+  private setupSearchFunctionality(): void {
+    const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
+    this.searchResults = document.getElementById('search-results') as HTMLDivElement;
+    
+    if (!searchInput || !this.searchResults) return;
+    
+    searchInput.addEventListener('input', () => {
+      this.clearResults();
+      this.selectedIndex = -1;
+    });
+
+    // Handle keyboard navigation
+    searchInput.addEventListener('keydown', (e) => {
+      this.handleKeydown(e);
+    });
+    
+    // Clear search when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target as Node) && !this.searchResults?.contains(e.target as Node)) {
+        this.clearResults();
+      }
+    });
+  }
+
+  performSearch(satellites: SatelliteData[], followingSatellite: string | null): void {
+    const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
+    const searchResults = document.getElementById('search-results') as HTMLDivElement;
+    
+    if (!searchInput || !searchResults) return;
+    
+    const query = searchInput.value.toLowerCase().trim();
+    
+    if (query.length < 2) {
+      this.clearResults();
+      return;
+    }
+    
+    const matches = satellites
+      .filter(satellite => 
+        satellite.name.toLowerCase().includes(query) ||
+        satellite.id.toLowerCase().includes(query) ||
+        satellite.type.toLowerCase().includes(query) ||
+        (satellite.shortname && satellite.shortname.toLowerCase().includes(query))
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 10);
+    
+    this.displayResults(matches, followingSatellite);
+  }
+
+  private handleKeydown(e: KeyboardEvent): void {
+    if (!this.searchResults) return;
+    
+    const results = this.searchResults.querySelectorAll('.search-result');
+    if (results.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        this.selectedIndex = Math.min(this.selectedIndex + 1, results.length - 1);
+        this.updateSelection();
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+        this.updateSelection();
+        break;
+      case 'Tab':
+        e.preventDefault();
+        if (e.shiftKey) {
+          this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+        } else {
+          this.selectedIndex = Math.min(this.selectedIndex + 1, results.length - 1);
+        }
+        this.updateSelection();
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (this.selectedIndex >= 0 && this.selectedIndex < results.length) {
+          const selectedResult = results[this.selectedIndex] as HTMLElement;
+          const satelliteId = selectedResult.dataset.satelliteId;
+          const satelliteName = selectedResult.dataset.satelliteName;
+          if (satelliteId && satelliteName) {
+            this.selectSatelliteById(satelliteId, satelliteName);
+          }
+        }
+        break;
+      case 'Escape':
+        e.preventDefault();
+        this.closeSearchDropdown();
+        break;
+    }
+  }
+
+  private updateSelection(): void {
+    if (!this.searchResults) return;
+    
+    const results = this.searchResults.querySelectorAll('.search-result');
+    results.forEach((result, index) => {
+      if (index === this.selectedIndex) {
+        result.classList.add('selected');
+        result.scrollIntoView({ block: 'nearest' });
+      } else {
+        result.classList.remove('selected');
+      }
+    });
+  }
+
+  private displayResults(matches: SatelliteData[], followingSatellite: string | null): void {
+    const searchResults = document.getElementById('search-results') as HTMLDivElement;
+    if (!searchResults) return;
+
+    searchResults.innerHTML = '';
+    this.selectedIndex = -1;
+    
+    matches.forEach((satellite) => {
+      const resultDiv = document.createElement('div');
+      resultDiv.className = 'search-result';
+      if (followingSatellite === satellite.id) {
+        resultDiv.className += ' following';
+      }
+      
+      // Store satellite data for keyboard selection
+      resultDiv.dataset.satelliteId = satellite.id;
+      resultDiv.dataset.satelliteName = satellite.name;
+      
+      resultDiv.innerHTML = `
+        <div><strong>${satellite.name}</strong></div>
+        <div style="font-size: 11px; color: #ccc;">
+          ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | Alt: ${satellite.altitude.toFixed(0)}km
+        </div>
+        <div style="font-size: 10px; color: #aaa;">
+          ${satellite.position.lat.toFixed(2)}°, ${satellite.position.lng.toFixed(2)}°
+        </div>
+      `;
+      
+      resultDiv.addEventListener('click', () => {
+        this.selectSatellite(satellite);
+      });
+      
+      searchResults.appendChild(resultDiv);
+    });
+    
+    if (matches.length === 0) {
+      searchResults.innerHTML = '<div style="padding: 8px; color: #999;">No satellites found</div>';
+    }
+  }
+
+  private selectSatellite(satellite: SatelliteData): void {
+    this.selectSatelliteById(satellite.id, satellite.name);
+  }
+
+  private selectSatelliteById(satelliteId: string, satelliteName: string): void {
+    const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = satelliteName;
+    }
+
+    this.clearResults();
+    this.selectedIndex = -1;
+    
+    // Force close the dropdown by directly manipulating the DOM
+    setTimeout(() => {
+      this.closeSearchDropdown();
+    }, 0);
+    
+    if (this.callbacks?.onSatelliteSelect) {
+      this.callbacks.onSatelliteSelect(satelliteId);
+    }
+  }
+
+  private clearResults(): void {
+    const searchResults = document.getElementById('search-results');
+    if (searchResults) {
+      searchResults.innerHTML = '';
+    }
+    this.selectedIndex = -1;
+  }
+
+  private closeSearchDropdown(): void {
+    const searchContent = document.getElementById('search-content');
+    const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
+    
+    if (searchContent && trackingItem) {
+      searchContent.classList.remove('active');
+      trackingItem.classList.remove('active');
+    }
+  }
+
+  updateSearchInput(satelliteName: string): void {
+    const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = satelliteName;
+    }
+  }
+}
