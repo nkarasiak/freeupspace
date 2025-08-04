@@ -123,6 +123,36 @@ export class DeckSatelliteTracker {
     this.onTrackingChangeCallback = callback;
   }
 
+  private onSatelliteClickCallback?: (satelliteId: string) => void;
+  private onStopFollowingCallback?: () => void;
+
+  setOnSatelliteClickCallback(callback: (satelliteId: string) => void) {
+    this.onSatelliteClickCallback = callback;
+  }
+
+  setOnStopFollowingCallback(callback: () => void) {
+    this.onStopFollowingCallback = callback;
+  }
+
+  private satelliteDataService?: any;
+
+  async setSatelliteDataService(service: any): Promise<void> {
+    this.satelliteDataService = service;
+    // Update satellites with data from the service if available
+    if (service && service.getSatellites) {
+      const serviceSatellites = service.getSatellites();
+      serviceSatellites.forEach((sat: any, id: string) => {
+        if (!this.satellites.has(id)) {
+          this.satellites.set(id, sat);
+        }
+      });
+    }
+  }
+
+  getSatelliteDataService(): any {
+    return this.satelliteDataService;
+  }
+
   private setupAggressivePitchOverride() {
     // Simplified approach: Let MapLibre handle pitch completely
     // Deck.gl should only handle satellite rendering, not pitch control
@@ -1079,6 +1109,11 @@ export class DeckSatelliteTracker {
         console.log('🖱️ SATELLITE CLICKED:', satelliteId, 'Current zoom:', this.map.getZoom());
         this.followSatellite(satelliteId);
         this.showSatelliteInfo(satellite);
+        
+        // Call the satellite click callback if set
+        if (this.onSatelliteClickCallback) {
+          this.onSatelliteClickCallback(satelliteId);
+        }
       }
     }
   }
@@ -1271,6 +1306,11 @@ export class DeckSatelliteTracker {
     // Notify about tracking change
     if (this.onTrackingChangeCallback) {
       this.onTrackingChangeCallback();
+    }
+    
+    // Call the stop following callback if set
+    if (this.onStopFollowingCallback) {
+      this.onStopFollowingCallback();
     }
   }
 

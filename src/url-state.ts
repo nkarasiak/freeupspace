@@ -131,4 +131,16 @@ export class URLState {
     map.on('pitchend', () => updateCallback());
     map.on('rotateend', () => updateCallback());
   }
+
+  navigateToSatellite(satelliteId: string) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('satellite', satelliteId);
+    window.history.pushState({}, '', url.toString());
+  }
+
+  navigateToHome() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('satellite');
+    window.history.pushState({}, '', url.toString());
+  }
 }
