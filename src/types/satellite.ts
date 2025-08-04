@@ -19,6 +19,7 @@ export interface SatelliteData {
   defaultBearing?: number;
   defaultZoom?: number;
   defaultPitch?: number;
+  scaleFactor?: number;
 }
 
 export interface SatelliteConfig {
@@ -37,6 +38,7 @@ export interface SatelliteConfig {
   defaultBearing?: number;
   defaultZoom?: number;
   defaultPitch?: number;
+  scaleFactor?: number;
 }
 
 export interface SatellitePointData {

@@ -27,6 +27,7 @@ export interface SatelliteData {
   };
   image?: string; // Optional image URL for satellites with custom icons
   defaultBearing?: number; // Optional default camera bearing when tracking this satellite (0-360 degrees)
+  scaleFactor?: number; // Optional scale factor for satellite size (default: 1.0)
 }
 
 export interface SatellitePointData {
@@ -433,6 +434,7 @@ export class DeckSatelliteTracker {
             shortname: sat.shortname || existingData.shortname,
             image: sat.image || existingData.image,
             dimensions: sat.dimensions || existingData.dimensions,
+            scaleFactor: sat.scaleFactor,
             // Keep the external TLE data as it's more current
           });
           // Config override applied
@@ -720,6 +722,7 @@ export class DeckSatelliteTracker {
         position: sat.position,
         type: sat.type,
         dimensions: sat.dimensions,
+        scaleFactor: sat.scaleFactor,
         isFollowed: this.followingSatellite === sat.id,
         hasImage: true // All satellites now have icons (images or dots)
       }));
@@ -842,7 +845,7 @@ export class DeckSatelliteTracker {
                         this.isInBounds(satellite.position, expandedBounds);
         
         if (shouldShowIcon && isInView) {
-          const baseIconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId);
+          const baseIconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId, satellite.scaleFactor);
           // Apply tracked satellite size multiplier if this is the followed satellite
           const sizeMultiplier = this.followingSatellite === satelliteId ? 
             this.trackedSatelliteSizeMultiplier : this.satelliteSizeMultiplier;
@@ -887,7 +890,7 @@ export class DeckSatelliteTracker {
   }
 
 
-  private getSatelliteImageSize(zoom: number, satelliteWidth: number, satelliteId: string): number {
+  private getSatelliteImageSize(zoom: number, satelliteWidth: number, satelliteId: string, scaleFactor?: number): number {
     // Smart size scaling with performance caps
     const effectiveZoom = Math.max(zoom, 0.5);
     const isTracked = this.followingSatellite === satelliteId;
@@ -908,6 +911,10 @@ export class DeckSatelliteTracker {
         size = Math.min(effectiveZoom * satelliteWidth * multiplier, 200); // Higher zoom gets bigger, cap at 200px
       }
     }
+    
+    // Apply satellite-specific scale factor
+    const finalScaleFactor = scaleFactor || 1.0;
+    size *= finalScaleFactor;
     
     // Minimum size to ensure visibility
     return Math.max(size, 8);

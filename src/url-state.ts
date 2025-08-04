@@ -9,31 +9,37 @@ export class URLState {
   private handleUrlRewriting() {
     const path = window.location.pathname;
     
-    // Handle /tracker/id format
+    // Handle /tracker/id format - keep the new format, don't rewrite it
     const trackerMatch = path.match(/^\/tracker\/([^\/]+)$/);
     if (trackerMatch) {
-      const satelliteId = decodeURIComponent(trackerMatch[1]);
-      // Rewrite to query parameter format
+      // New format is already correct, just return
+      return;
+    }
+    
+    // Handle old format ?satellite=id - convert to new format
+    const urlParams = new URLSearchParams(window.location.search);
+    const satelliteParam = urlParams.get('satellite');
+    if (satelliteParam && path === '/') {
       const url = new URL(window.location.href);
-      url.pathname = '/';
-      url.searchParams.set('satellite', satelliteId);
+      url.pathname = `/tracker/${encodeURIComponent(satelliteParam)}`;
+      url.searchParams.delete('satellite');
       window.history.replaceState({}, '', url.toString());
       return;
     }
     
     // Handle GitHub Pages redirect parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const redirectPath = urlParams.get('redirect');
+    const redirectUrlParams = new URLSearchParams(window.location.search);
+    const redirectPath = redirectUrlParams.get('redirect');
     if (redirectPath) {
       const redirectMatch = redirectPath.match(/^\/tracker\/([^\/]+)$/);
       if (redirectMatch) {
         const satelliteId = decodeURIComponent(redirectMatch[1]);
         // Remove redirect parameter and set satellite parameter
-        urlParams.delete('redirect');
-        urlParams.set('satellite', satelliteId);
+        redirectUrlParams.delete('redirect');
+        redirectUrlParams.set('satellite', satelliteId);
         const url = new URL(window.location.href);
         url.pathname = '/';
-        url.search = urlParams.toString();
+        url.search = redirectUrlParams.toString();
         window.history.replaceState({}, '', url.toString());
       }
     }
