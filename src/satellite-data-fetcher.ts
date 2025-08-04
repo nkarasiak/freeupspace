@@ -234,7 +234,7 @@ export class SatelliteDataFetcher {
   }
   
   /**
-   * Fetch TLE data from local file
+   * Fetch TLE data from Celestrak
    */
   async fetchTLEData(group: string): Promise<TLEData[]> {
     const cacheKey = group.toLowerCase();
@@ -246,21 +246,21 @@ export class SatelliteDataFetcher {
     }
     
     try {
-      const response = await fetch('/static/gp.txt');
+      const response = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle');
       if (!response.ok) {
-        throw new Error(`Failed to fetch local TLE data: ${response.status} ${response.statusText}`);
+        throw new Error(`Failed to fetch TLE data from Celestrak: ${response.status} ${response.statusText}`);
       }
       
       const tleText = await response.text();
       
       if (tleText.length < 100) {
-        throw new Error('Local TLE file appears to be empty or too small');
+        throw new Error('TLE data from Celestrak appears to be empty or too small');
       }
       
       const allTleData = this.parseTLEData(tleText);
       
       if (allTleData.length === 0) {
-        throw new Error('No valid TLE data found in local file');
+        throw new Error('No valid TLE data found from Celestrak');
       }
       
       // Cache the results both in memory and localStorage
