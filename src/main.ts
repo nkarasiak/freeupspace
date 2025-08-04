@@ -189,7 +189,6 @@ class SatelliteTracker3D {
     try {
       this.map.setProjection({ type: 'globe' });
     } catch (error) {
-      console.warn('⚠️ Globe projection not supported, falling back to mercator:', error);
       this.isGlobeMode = false;
     }
   }
@@ -206,7 +205,6 @@ class SatelliteTracker3D {
         this.showMessage('🌍 Globe projection enabled', 'info');
       }
     } catch (error) {
-      console.warn('⚠️ Projection switch failed:', error);
       this.showMessage('⚠️ Projection switch failed', 'error');
     }
   }
@@ -367,10 +365,10 @@ class SatelliteTracker3D {
       const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
       
       
-      // Check if satellite is in config for instant loading
+      // Check if satellite is in config and has TLE data for instant loading
       const configSatellite = this.satelliteTracker.getSatelliteConfigs().find(sat => sat.id === satelliteToTrack);
       
-      if (configSatellite) {
+      if (configSatellite && configSatellite.tle1 && configSatellite.tle2) {
         
         // Load config satellite immediately (no API dependency)
         const satelliteLoaded = this.satelliteTracker.loadConfigSatelliteById(satelliteToTrack);
@@ -523,7 +521,6 @@ class SatelliteTracker3D {
       map.setMaxPitch(85);
       
     } catch (error) {
-      console.error('❌ Error during maxPitch override:', error);
     }
   }
 

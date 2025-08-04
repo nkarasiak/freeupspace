@@ -209,7 +209,7 @@ export class CommandPalette {
         if (satellite) {
           matchingSatellites.push({
             id,
-            name: satellite.shortname || satellite.name
+            name: satellite.shortname || satellite.name || id
           });
         }
       });
@@ -221,7 +221,7 @@ export class CommandPalette {
         if (!popularSatellites.includes(id)) {
           matchingSatellites.push({
             id,
-            name: satellite.shortname || satellite.name
+            name: satellite.shortname || satellite.name || id
           });
           count++;
         }
@@ -229,14 +229,15 @@ export class CommandPalette {
     } else {
       // Search with the provided term
       satellites.forEach((satellite, id) => {
-        const matchesName = satellite.name.toLowerCase().includes(lowerSearchTerm);
+        const matchesName = satellite.name && satellite.name.toLowerCase().includes(lowerSearchTerm);
         const matchesShortname = satellite.shortname?.toLowerCase().includes(lowerSearchTerm);
+        const matchesAlternateName = satellite.alternateName?.toLowerCase().includes(lowerSearchTerm);
         const matchesId = id.toLowerCase().includes(lowerSearchTerm);
         
-        if (matchesName || matchesShortname || matchesId) {
+        if (matchesName || matchesShortname || matchesAlternateName || matchesId) {
           matchingSatellites.push({
             id, 
-            name: satellite.shortname || satellite.name
+            name: satellite.shortname || satellite.name || id || id
           });
         }
       });
@@ -282,8 +283,8 @@ export class CommandPalette {
       item.innerHTML = `
         <div class="command-icon">🛰️</div>
         <div class="command-text">
-          <div class="command-title">${satellite.name}</div>
-          <div class="command-description">Track ${satellite.name}</div>
+          <div class="command-title">${satellite.name || satellite.id}</div>
+          <div class="command-description">Track ${satellite.name || satellite.id}</div>
         </div>
       `;
       

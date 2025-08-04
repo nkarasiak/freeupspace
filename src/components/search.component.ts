@@ -63,12 +63,13 @@ export class SearchComponent {
     
     const matches = this.satellites
       .filter(satellite => 
-        satellite.name.toLowerCase().includes(query) ||
+        (satellite.name && satellite.name.toLowerCase().includes(query)) ||
         satellite.id.toLowerCase().includes(query) ||
         satellite.type.toLowerCase().includes(query) ||
-        (satellite.shortname && satellite.shortname.toLowerCase().includes(query))
+        (satellite.shortname && satellite.shortname.toLowerCase().includes(query)) ||
+        (satellite.alternateName && satellite.alternateName.toLowerCase().includes(query))
       )
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
       .slice(0, 10);
     
     this.displayResults(matches, this.followingSatellite);
@@ -156,10 +157,10 @@ export class SearchComponent {
       
       // Store satellite data for keyboard selection
       resultDiv.dataset.satelliteId = satellite.id;
-      resultDiv.dataset.satelliteName = satellite.name;
+      resultDiv.dataset.satelliteName = satellite.name || satellite.id;
       
       resultDiv.innerHTML = `
-        <div><strong>${satellite.name}</strong></div>
+        <div><strong>${satellite.name || satellite.id}</strong></div>
         <div style="font-size: 11px; color: #ccc;">
           ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | Alt: ${satellite.altitude.toFixed(0)}km
         </div>

@@ -94,7 +94,6 @@ export class SmoothTracker {
     
     this.trackingState = null;
     this.predictionCache.clear();
-    console.log('🛑 Ultra-smooth tracking stopped');
   }
 
   // Get predicted position at any timestamp (for 60fps smooth tracking)

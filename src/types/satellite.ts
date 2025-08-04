@@ -4,6 +4,7 @@ export interface SatelliteData {
   id: string;
   name: string;
   shortname?: string;
+  alternateName?: string;
   type: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
   position: LngLat;
   altitude: number;
@@ -24,12 +25,13 @@ export interface SatelliteData {
 
 export interface SatelliteConfig {
   id: string;
-  name: string;
+  name?: string;
   shortname?: string;
-  type: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
-  tle1: string;
-  tle2: string;
-  dimensions: {
+  alternateName?: string;
+  type?: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
+  tle1?: string;
+  tle2?: string;
+  dimensions?: {
     length: number;
     width: number;
     height: number;

@@ -6,7 +6,6 @@ export class SatelliteCalculator {
     try {
       // Basic TLE validation
       if (!tle1 || !tle2 || tle1.length < 69 || tle2.length < 69) {
-        console.warn('⚠️ Invalid TLE format:', {tle1: tle1?.length, tle2: tle2?.length});
         return { longitude: NaN, latitude: NaN, altitude: NaN, velocity: NaN };
       }
 
@@ -14,7 +13,6 @@ export class SatelliteCalculator {
       
       // Check if TLE parsing was successful
       if (!satrec || satrec.error) {
-        console.warn('⚠️ TLE parsing failed:', satrec?.error);
         return { longitude: NaN, latitude: NaN, altitude: NaN, velocity: NaN };
       }
 
@@ -31,7 +29,6 @@ export class SatelliteCalculator {
         
         // Additional validation
         if (isNaN(longitude) || isNaN(latitude) || isNaN(altitude)) {
-          console.warn('⚠️ Invalid calculated position:', {longitude, latitude, altitude});
           return { longitude: NaN, latitude: NaN, altitude: NaN, velocity: NaN };
         }
         
@@ -50,7 +47,6 @@ export class SatelliteCalculator {
         };
       }
     } catch (error) {
-      console.warn('⚠️ Error calculating satellite position:', error);
     }
     
     return { longitude: NaN, latitude: NaN, altitude: NaN, velocity: NaN };

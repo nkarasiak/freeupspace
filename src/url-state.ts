@@ -43,6 +43,16 @@ export class URLState {
         window.history.replaceState({}, '', url.toString());
       }
     }
+    
+    // Default to ISS tracker if on homepage with no satellite specified
+    if (path === '/' && !urlParams.get('satellite') && !urlParams.get('name')) {
+      const url = new URL(window.location.href);
+      url.pathname = '/tracker/iss-zarya';
+      url.searchParams.set('zoom', '4');
+      url.searchParams.set('pitch', '60');
+      window.history.replaceState({}, '', url.toString());
+      return;
+    }
   }
 
   setInitializing(state: boolean) {

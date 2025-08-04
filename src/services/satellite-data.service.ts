@@ -3,34 +3,52 @@ import { SatelliteData, SatelliteConfig } from '../types/satellite';
 import { SatelliteCalculator } from '../utils/satellite-calculator';
 import { SATELLITE_CONFIGS_WITH_STARLINK } from '../config/satellites';
 
-export class SatelliteDataService {
+export class SatelliteDataService extends EventTarget {
   private satellites: Map<string, SatelliteData> = new Map();
+  private onlineSatellitesLoaded: boolean = false;
 
   async initialize(): Promise<void> {
-    console.log('🛰️ Initializing satellite data service...');
     this.loadSatelliteConfigs();
+    
+    // Since we're using local data, mark online satellites as loaded
+    this.setOnlineSatellitesLoaded(true);
   }
 
   private loadSatelliteConfigs(): void {
     SATELLITE_CONFIGS_WITH_STARLINK.forEach(config => {
       try {
+        // Skip configs without TLE data - they will be loaded from external sources
+        if (!config.tle1 || !config.tle2) {
+          return;
+        }
+        
         const position = SatelliteCalculator.calculatePosition(config.tle1, config.tle2);
         
         // Validate position data
         if (!SatelliteCalculator.isValidPosition(position)) {
-          console.warn(`⚠️ Invalid position for satellite ${config.id}, skipping`);
           return; // Skip this satellite
         }
         
         // Add default dimensions if not specified
         let dimensions = config.dimensions;
         if (!dimensions) {
-          dimensions = SatelliteCalculator.getDefaultDimensionsForType(config.type, config.id);
+          dimensions = SatelliteCalculator.getDefaultDimensionsForType(config.type || 'communication', config.id);
         }
         
         const satelliteData: SatelliteData = {
-          ...config,
+          id: config.id,
+          name: config.name || config.id,
+          shortname: config.shortname,
+          alternateName: config.alternateName,
+          type: config.type || 'communication',
+          tle1: config.tle1,
+          tle2: config.tle2,
           dimensions,
+          image: config.image,
+          defaultBearing: config.defaultBearing,
+          defaultZoom: config.defaultZoom,
+          defaultPitch: config.defaultPitch,
+          scaleFactor: config.scaleFactor,
           position: new LngLat(position.longitude, position.latitude),
           altitude: position.altitude,
           velocity: position.velocity
@@ -40,19 +58,12 @@ export class SatelliteDataService {
         
         // Debug Landsat satellites specifically
         if (config.id.includes('landsat')) {
-          console.log(`🔍 Loading ${config.id}:`, { 
-            id: config.id, 
-            name: config.name, 
-            image: config.image,
-            satelliteData: { ...satelliteData, image: satelliteData.image }
-          });
         }
       } catch (error) {
         console.error(`❌ Error loading satellite ${config.id}:`, error);
       }
     });
 
-    console.log(`🛰️ Loaded ${this.satellites.size} satellites total`);
   }
 
   getSatellites(): Map<string, SatelliteData> {
@@ -87,11 +98,28 @@ export class SatelliteDataService {
     const config = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === satelliteId);
     if (config) {
       try {
+        // Skip configs without TLE data - they will be loaded from external sources
+        if (!config.tle1 || !config.tle2) {
+          return false;
+        }
+        
         const position = SatelliteCalculator.calculatePosition(config.tle1, config.tle2);
         
         if (SatelliteCalculator.isValidPosition(position)) {
           const satelliteData: SatelliteData = {
-            ...config,
+            id: config.id,
+            name: config.name || config.id,
+            shortname: config.shortname,
+            alternateName: config.alternateName,
+            type: config.type || 'communication',
+            tle1: config.tle1,
+            tle2: config.tle2,
+            dimensions: config.dimensions || SatelliteCalculator.getDefaultDimensionsForType(config.type || 'communication', config.id),
+            image: config.image,
+            defaultBearing: config.defaultBearing,
+            defaultZoom: config.defaultZoom,
+            defaultPitch: config.defaultPitch,
+            scaleFactor: config.scaleFactor,
             position: new LngLat(position.longitude, position.latitude),
             altitude: position.altitude,
             velocity: position.velocity
@@ -124,5 +152,28 @@ export class SatelliteDataService {
 
   removeSatellite(id: string): boolean {
     return this.satellites.delete(id);
+  }
+
+  getStats(): { total: number; static: number; online: number } {
+    const total = this.satellites.size;
+    return {
+      total,
+      static: total, // All satellites are from local file now
+      online: 0     // No online satellites since we use local file
+    };
+  }
+
+  isOnlineSatellitesLoaded(): boolean {
+    return this.onlineSatellitesLoaded;
+  }
+
+  setOnlineSatellitesLoaded(loaded: boolean): void {
+    this.onlineSatellitesLoaded = loaded;
+    this.dispatchEvent(new CustomEvent('satellites-updated', {
+      detail: {
+        addedCount: 0,
+        totalCount: this.satellites.size
+      }
+    }));
   }
 }

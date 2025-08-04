@@ -167,7 +167,6 @@ export class SatelliteDataFetcher {
         }
       }
     } catch (error) {
-      console.warn('⚠️ Failed to load cache from localStorage:', error);
     }
   }
   
@@ -185,7 +184,6 @@ export class SatelliteDataFetcher {
       
       localStorage.setItem(storageKey, JSON.stringify(storageData));
     } catch (error) {
-      console.warn(`⚠️ Failed to save cache for ${group} to localStorage:`, error);
       
       if (error instanceof DOMException && error.name === 'QuotaExceededError') {
         this.cleanupOldCache();
@@ -197,7 +195,6 @@ export class SatelliteDataFetcher {
             timestamp: Date.now()
           }));
         } catch (retryError) {
-          console.error(`❌ Failed to save cache even after cleanup:`, retryError);
         }
       }
     }
@@ -233,13 +230,11 @@ export class SatelliteDataFetcher {
         this.cacheExpiry.delete(group);
       }
     } catch (error) {
-      console.warn('⚠️ Failed to cleanup old cache:', error);
     }
   }
   
   /**
-   * Fetch TLE data from Celestrak for a specific satellite group
-   * Handles pagination to get ALL satellites
+   * Fetch TLE data from local file
    */
   async fetchTLEData(group: string): Promise<TLEData[]> {
     const cacheKey = group.toLowerCase();
@@ -251,73 +246,21 @@ export class SatelliteDataFetcher {
     }
     
     try {
-      // Try different URLs and formats to get all satellites
-      let urls: string[] = [];
-      
-      if (group === 'starlink') {
-        // Special handling for Starlink - use multiple sources
-        urls = [
-          `https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle`,
-          `https://celestrak.org/NORAD/elements/supplemental/gp.php?GROUP=starlink&FORMAT=tle`
-        ];
-      } else {
-        // Standard URLs for other satellite groups - only use main endpoint for now
-        urls = [
-          `https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=tle`
-        ];
-        
-        // Add supplemental only for groups that we know have supplemental data
-        const hasSupplemental = ['planet', 'starlink', 'oneweb', 'kuiper'];
-        if (hasSupplemental.includes(group)) {
-          urls.push(`https://celestrak.org/NORAD/elements/supplemental/gp.php?GROUP=${group}&FORMAT=tle`);
-        }
+      const response = await fetch('/static/gp.txt');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch local TLE data: ${response.status} ${response.statusText}`);
       }
       
-      let allTleData: TLEData[] = [];
-      let successfulFetches = 0;
+      const tleText = await response.text();
       
-      for (const url of urls) {
-        try {
-          const response = await fetch(url);
-          if (!response.ok) {
-            continue;
-          }
-          
-          const tleText = await response.text();
-          
-          // Skip if response is too small (likely error page)
-          if (tleText.length < 100) {
-            continue;
-          }
-          
-          const tleData = this.parseTLEData(tleText);
-          
-          if (tleData.length > 0) {
-            
-            // Merge with existing data, avoiding duplicates
-            const existingIds = new Set(allTleData.map(sat => sat.id));
-            const newSatellites = tleData.filter(sat => !existingIds.has(sat.id));
-            
-            allTleData = [...allTleData, ...newSatellites];
-            successfulFetches++;
-            
-            // For Starlink, always try all URLs to get maximum coverage
-            if (group === 'starlink') {
-              continue; // Always try more URLs for Starlink
-            } else if (allTleData.length < 100) {
-              continue; // Try more URLs for better coverage if we don't have enough
-            } else {
-              break; // For other groups, stop when we have a good amount
-            }
-          }
-          
-        } catch (urlError) {
-          continue;
-        }
+      if (tleText.length < 100) {
+        throw new Error('Local TLE file appears to be empty or too small');
       }
+      
+      const allTleData = this.parseTLEData(tleText);
       
       if (allTleData.length === 0) {
-        throw new Error(`No valid TLE data found for ${group} from any URL`);
+        throw new Error('No valid TLE data found in local file');
       }
       
       // Cache the results both in memory and localStorage
@@ -329,7 +272,6 @@ export class SatelliteDataFetcher {
       return allTleData;
       
     } catch (error) {
-      console.error(`❌ Failed to fetch TLE data for ${group}:`, error);
       
       // Return cached data if available, even if expired
       if (this.cache.has(cacheKey)) {
@@ -346,6 +288,7 @@ export class SatelliteDataFetcher {
   private parseTLEData(tleText: string): TLEData[] {
     const lines = tleText.trim().split('\n');
     const satellites: TLEData[] = [];
+    const existingIds = new Set<string>();
     
     for (let i = 0; i < lines.length; i += 3) {
       if (i + 2 >= lines.length) break;
@@ -356,15 +299,18 @@ export class SatelliteDataFetcher {
       
       // Validate TLE format
       if (!tle1.startsWith('1 ') || !tle2.startsWith('2 ')) {
-        console.warn(`⚠️ Invalid TLE format for ${name}`);
         continue;
       }
       
       // Extract catalog number from TLE line 1
       const catalogNumber = tle1.substring(2, 7).trim();
       
+      // Generate unique ID, preferring clean name without catalog number
+      const id = this.generateSatelliteId(name, catalogNumber, existingIds);
+      existingIds.add(id);
+      
       satellites.push({
-        id: this.generateSatelliteId(name, catalogNumber),
+        id: id,
         name: name,
         tle1: tle1,
         tle2: tle2,
@@ -376,15 +322,21 @@ export class SatelliteDataFetcher {
   }
   
   /**
-   * Generate a unique satellite ID from name and catalog number
+   * Generate a unique satellite ID from name, avoiding catalog numbers when possible
    */
-  private generateSatelliteId(name: string, catalogNumber: string): string {
+  private generateSatelliteId(name: string, catalogNumber: string, existingIds?: Set<string>): string {
     // Clean name for ID use
     const cleanName = name.toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
     
+    // Try using just the clean name first
+    if (!existingIds || !existingIds.has(cleanName)) {
+      return cleanName;
+    }
+    
+    // If there's a conflict, append the catalog number
     return `${cleanName}-${catalogNumber}`;
   }
   
@@ -444,6 +396,24 @@ export class SatelliteDataFetcher {
   async fetchSatellites(groups: string[]): Promise<SatelliteConfig[]> {
     const allSatellites: SatelliteConfig[] = [];
     
+    // Special case: load everything from GP file
+    if (groups.includes('all')) {
+      try {
+        const tleData = await this.fetchTLEData('all');
+        
+        for (const tle of tleData) {
+          const config = this.applyOverrides(tle.name, tle);
+          allSatellites.push(config);
+        }
+        
+        return allSatellites;
+        
+      } catch (error) {
+        return allSatellites;
+      }
+    }
+    
+    // Original group-by-group loading (kept for compatibility)
     for (const group of groups) {
       try {
         const tleData = await this.fetchTLEData(group);
@@ -454,7 +424,6 @@ export class SatelliteDataFetcher {
         }
         
       } catch (error) {
-        console.error(`❌ Failed to process group ${group}:`, error);
       }
     }
     
@@ -512,7 +481,6 @@ export class SatelliteDataFetcher {
         localStorage.removeItem(key);
       }
     } catch (error) {
-      console.warn('⚠️ Failed to clear localStorage cache:', error);
     }
   }
   

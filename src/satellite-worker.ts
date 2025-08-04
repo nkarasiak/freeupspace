@@ -103,7 +103,6 @@ function calculateSatellitePosition(request: SatelliteCalcRequest): SatelliteCal
       };
     }
   } catch (error) {
-    console.error(`Error calculating position for satellite ${request.id}:`, error);
   }
   
   return null;

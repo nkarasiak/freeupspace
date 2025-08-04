@@ -14,6 +14,7 @@ export interface SatelliteData {
   id: string;
   name: string;
   shortname?: string; // Optional short display name
+  alternateName?: string; // Optional alternate name for searching
   type: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
   position: LngLat;
   altitude: number;
@@ -271,13 +272,23 @@ export class DeckSatelliteTracker {
   loadConfigSatelliteById(satelliteId: string) {
     const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === satelliteId);
     
-    if (satelliteConfig) {
+    if (satelliteConfig && satelliteConfig.tle1 && satelliteConfig.tle2) {
       try {
         const position = this.calculateSatellitePosition(satelliteConfig.tle1, satelliteConfig.tle2, satelliteConfig.id);
         
         if (!isNaN(position.longitude) && !isNaN(position.latitude) && !isNaN(position.altitude)) {
           this.satellites.set(satelliteConfig.id, {
-            ...satelliteConfig,
+            id: satelliteConfig.id,
+            name: satelliteConfig.name || satelliteConfig.id,
+            shortname: satelliteConfig.shortname,
+            alternateName: satelliteConfig.alternateName,
+            type: satelliteConfig.type || 'communication',
+            tle1: satelliteConfig.tle1,
+            tle2: satelliteConfig.tle2,
+            dimensions: satelliteConfig.dimensions || { length: 2.0, width: 1.0, height: 1.0 },
+            image: satelliteConfig.image,
+            defaultBearing: satelliteConfig.defaultBearing,
+            scaleFactor: satelliteConfig.scaleFactor,
             position: new LngLat(position.longitude, position.latitude),
             altitude: position.altitude,
             velocity: position.velocity
@@ -293,7 +304,6 @@ export class DeckSatelliteTracker {
           return true;
         }
       } catch (error) {
-        console.warn(`⚠️ Failed to load ${satelliteId} immediately:`, error);
       }
     }
     return false;
@@ -324,10 +334,64 @@ export class DeckSatelliteTracker {
     this.satelliteWorker = null;
   }
 
+  // Prioritize satellites for loading - important ones first
+  private prioritizeAllSatellites(satellites: any[]): any[] {
+    return satellites.sort((a, b) => {
+      // Priority scoring system (higher score = loaded first)
+      const getScore = (sat: any) => {
+        const name = sat.name.toUpperCase();
+        
+        // Tier 1: Most important satellites (ISS, major space stations)
+        if (name.includes('ISS') || name.includes('ZARYA')) return 1000;
+        if (name.includes('TIANGONG') || name.includes('CHINESE SPACE STATION')) return 950;
+        
+        // Tier 2: Famous scientific satellites
+        if (name.includes('HUBBLE') || name.includes('HST')) return 900;
+        if (name.includes('JAMES WEBB') || name.includes('JWST')) return 890;
+        if (name.includes('CHANDRA') || name.includes('SPITZER')) return 880;
+        
+        // Tier 3: Navigation satellites (GPS, Galileo, etc.)
+        if (name.includes('GPS') || name.includes('NAVSTAR')) return 800;
+        if (name.includes('GALILEO')) return 790;
+        if (name.includes('BEIDOU')) return 780;
+        if (name.includes('GLONASS')) return 770;
+        
+        // Tier 4: Earth observation (Sentinel, Landsat, etc.)
+        if (name.includes('SENTINEL')) return 700;
+        if (name.includes('LANDSAT')) return 690;
+        if (name.includes('MODIS') || name.includes('AQUA') || name.includes('TERRA')) return 680;
+        
+        // Tier 5: Weather satellites
+        if (name.includes('NOAA') || name.includes('GOES') || name.includes('METEOSAT')) return 600;
+        
+        // Tier 6: Communication satellites (non-Starlink)
+        if (name.includes('IRIDIUM')) return 500;
+        if (name.includes('GLOBALSTAR')) return 490;
+        if (name.includes('ONEWEB')) return 480;
+        
+        // Tier 7: CubeSats and small satellites (including YAM-10)
+        if (name.includes('CUBESAT') || name.includes('YAM') || sat.type === 'cubesat') return 400;
+        
+        // Tier 8: Starlink (lowest priority due to huge numbers)
+        if (name.includes('STARLINK')) return 100;
+        
+        // Default priority
+        return 200;
+      };
+      
+      return getScore(b) - getScore(a); // Sort descending (highest score first)
+    });
+  }
+
   private loadConfigSatellites() {
     // Load satellites from config immediately (no external API calls)
     SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
       try {
+        // Skip configs without TLE data - they will be loaded from external sources
+        if (!sat.tle1 || !sat.tle2) {
+          return;
+        }
+        
         const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
         
         if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
@@ -335,7 +399,17 @@ export class DeckSatelliteTracker {
         }
         
         this.satellites.set(sat.id, {
-          ...sat,
+          id: sat.id,
+          name: sat.name || sat.id,
+          shortname: sat.shortname,
+          alternateName: sat.alternateName,
+          type: sat.type || 'communication',
+          tle1: sat.tle1,
+          tle2: sat.tle2,
+          dimensions: sat.dimensions || { length: 2.0, width: 1.0, height: 1.0 },
+          image: sat.image,
+          defaultBearing: sat.defaultBearing,
+          scaleFactor: sat.scaleFactor,
           position: new LngLat(position.longitude, position.latitude),
           altitude: position.altitude,
           velocity: position.velocity
@@ -350,129 +424,33 @@ export class DeckSatelliteTracker {
   private async loadSampleSatellites() {
     
     try {
-      // Load satellites from multiple sources - using only VALID Celestrak group names
-      const satelliteGroups = [
-        'stations',       // ISS and other space stations
-        'science',        // Scientific satellites (Hubble, etc.)
-        'weather',        // Weather satellites
-        'noaa',           // NOAA weather satellites
-        'goes',           // GOES weather satellites
-        'resource',       // Earth observation/resource satellites (includes Sentinel)
-        'cubesat',        // CubeSats (includes YAM-10, etc.)
-        'planet',         // Planet Labs satellites
-        'spire',          // Spire Global satellites
-        'gps-ops',        // GPS operational satellites
-        'galileo',        // Galileo navigation
-        'beidou',         // BeiDou navigation
-        'glo-ops',        // GLONASS operational
-        'iridium-NEXT',   // Iridium NEXT constellation
-        'globalstar',     // Globalstar communication
-        'oneweb',         // OneWeb constellation
-        'starlink'        // Starlink satellites (will be largest group)
-      ];
-      
+      // Load all satellites from the GP file with performance optimizations
+      const maxTotalSatellites = 5000; // Global limit to prevent memory issues
       let totalLoadedCount = 0;
       
-      // Load each group completely - no artificial limits
-      for (const groupName of satelliteGroups) {
-        try {
-          
-          const groupSatellites = await this.satelliteDataFetcher.fetchSatellites([groupName]);
-          let groupLoadedCount = 0;
-          
-          for (const sat of groupSatellites) {
-            try {
-              const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
-              
-              if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
-                console.warn(`⚠️ Invalid position for satellite ${sat.id}`);
-                continue;
-              }
-              
-              this.satellites.set(sat.id, {
-                ...sat,
-                position: new LngLat(position.longitude, position.latitude),
-                altitude: position.altitude,
-                velocity: position.velocity
-              });
-              
-              groupLoadedCount++;
-              totalLoadedCount++;
-              
-              // Performance check - warn if we're getting too many satellites
-              if (totalLoadedCount > 10000) {
-                console.warn(`⚠️ High satellite count: ${totalLoadedCount}. Consider performance optimizations.`);
-              }
-              
-            } catch (error) {
-              console.warn(`⚠️ Error loading satellite ${sat.id}:`, error);
-            }
-          }
-          
-          
-        } catch (error) {
-          console.error(`❌ Failed to load ${groupName} satellites:`, error);
-        }
+      
+      // Load all satellites from the single GP file (fetcher will return everything)
+      const allSatellites = await this.satelliteDataFetcher.fetchSatellites(['all']);
+      
+      if (allSatellites.length === 0) {
+        throw new Error('No satellites loaded from external source');
       }
       
-      // Always load important static satellites (YAM-10, etc.) regardless of external sources
-      let staticLoadedCount = 0;
       
-      SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
-        // Find existing satellite by name (case-insensitive, ignoring spaces/dashes)
-        const normalizedConfigName = sat.name.toLowerCase().replace(/[-\s]/g, '');
-        const existingSatellite = Array.from(this.satellites.entries()).find(([, existing]) => 
-          existing.name.toLowerCase().replace(/[-\s]/g, '') === normalizedConfigName
-        );
-        
-        if (existingSatellite) {
-          // Update existing satellite with config overrides (custom name, image, etc.)
-          const [existingId, existingData] = existingSatellite;
-          this.satellites.set(existingId, {
-            ...existingData,
-            // Override with custom config properties
-            shortname: sat.shortname || existingData.shortname,
-            image: sat.image || existingData.image,
-            dimensions: sat.dimensions || existingData.dimensions,
-            scaleFactor: sat.scaleFactor,
-            // Keep the external TLE data as it's more current
-          });
-          // Config override applied
-        } else if (!this.satellites.has(sat.id)) {
-          // Add new satellite that doesn't exist in external sources
-          try {
-            const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
-            
-            if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
-              console.warn(`⚠️ Invalid position for static satellite ${sat.id}`);
-              return;
-            }
-            
-            this.satellites.set(sat.id, {
-              ...sat,
-              position: new LngLat(position.longitude, position.latitude),
-              altitude: position.altitude,
-              velocity: position.velocity
-            });
-            
-            staticLoadedCount++;
-            
-          } catch (error) {
-            console.warn(`⚠️ Error loading static satellite ${sat.id}:`, error);
-          }
+      // Sort all satellites by priority (important ones first)
+      const sortedSatellites = this.prioritizeAllSatellites(allSatellites);
+      
+      // Load satellites up to the performance limit
+      for (const sat of sortedSatellites) {
+        if (totalLoadedCount >= maxTotalSatellites) {
+          break;
         }
-      });
-    } catch (error) {
-      console.error('❌ Failed to load dynamic satellites, falling back to static config:', error);
-      
-      // Fallback to static configuration
-      SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
+        
         try {
           const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
           
           if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
-            console.error(`❌ Invalid position for satellite ${sat.id}`);
-            return;
+            continue; // Skip invalid positions silently for performance
           }
           
           this.satellites.set(sat.id, {
@@ -482,12 +460,121 @@ export class DeckSatelliteTracker {
             velocity: position.velocity
           });
           
+          totalLoadedCount++;
+          
+          // Progress indicator for large loads
+          
         } catch (error) {
-          console.error(`❌ Error loading satellite ${sat.id}:`, error);
+          // Skip problematic satellites silently for performance
+          continue;
+        }
+      }
+      
+      
+      // Performance impact warning
+      if (totalLoadedCount > 3000) {
+      }
+      
+      // Always load important static satellites (YAM-10, etc.) regardless of external sources
+      let staticLoadedCount = 0;
+      
+      SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
+        // Try to find existing satellite by ID first, then by name if available
+        let existingSatellite = Array.from(this.satellites.entries()).find(([existingId]) => 
+          existingId === sat.id
+        );
+        
+        // If not found by ID and config has a name, try to match by name
+        if (!existingSatellite && sat.name) {
+          const normalizedConfigName = sat.name.toLowerCase().replace(/[-\s]/g, '');
+          existingSatellite = Array.from(this.satellites.entries()).find(([, existing]) => 
+            existing.name.toLowerCase().replace(/[-\s]/g, '') === normalizedConfigName
+          );
+        }
+        
+        if (existingSatellite) {
+          // Update existing satellite with config overrides (custom name, image, etc.)
+          const [existingId, existingData] = existingSatellite;
+          this.satellites.set(existingId, {
+            ...existingData,
+            // Override with custom config properties
+            shortname: sat.shortname || existingData.shortname,
+            alternateName: sat.alternateName || existingData.alternateName,
+            image: sat.image || existingData.image,
+            dimensions: sat.dimensions || existingData.dimensions,
+            scaleFactor: sat.scaleFactor,
+            // Keep the external TLE data as it's more current
+          });
+          // Config override applied
+        } else if (!this.satellites.has(sat.id) && sat.tle1 && sat.tle2) {
+          // Add new satellite that doesn't exist in external sources
+          try {
+            const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+            
+            if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+              return;
+            }
+            
+            this.satellites.set(sat.id, {
+              id: sat.id,
+              name: sat.name || sat.id,
+              shortname: sat.shortname,
+              alternateName: sat.alternateName,
+              type: sat.type || 'communication',
+              tle1: sat.tle1,
+              tle2: sat.tle2,
+              dimensions: sat.dimensions || { length: 2.0, width: 1.0, height: 1.0 },
+              image: sat.image,
+              defaultBearing: sat.defaultBearing,
+              scaleFactor: sat.scaleFactor,
+              position: new LngLat(position.longitude, position.latitude),
+              altitude: position.altitude,
+              velocity: position.velocity
+            });
+            
+            staticLoadedCount++;
+            
+          } catch (error) {
+          }
+        }
+      });
+    } catch (error) {
+      
+      // Fallback to static configuration
+      SATELLITE_CONFIGS_WITH_STARLINK.forEach(sat => {
+        try {
+          // Skip configs without TLE data
+          if (!sat.tle1 || !sat.tle2) {
+            return;
+          }
+          
+          const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
+          
+          if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+            return;
+          }
+          
+          this.satellites.set(sat.id, {
+            id: sat.id,
+            name: sat.name || sat.id,
+            shortname: sat.shortname,
+            alternateName: sat.alternateName,
+            type: sat.type || 'communication',
+            tle1: sat.tle1,
+            tle2: sat.tle2,
+            dimensions: sat.dimensions || { length: 2.0, width: 1.0, height: 1.0 },
+            image: sat.image,
+            defaultBearing: sat.defaultBearing,
+            scaleFactor: sat.scaleFactor,
+            position: new LngLat(position.longitude, position.latitude),
+            altitude: position.altitude,
+            velocity: position.velocity
+          });
+          
+        } catch (error) {
         }
       });
       
-      console.log(`🛰️ Loaded ${this.satellites.size} satellites total`);
     }
   }
 
@@ -509,9 +596,13 @@ export class DeckSatelliteTracker {
   }
 
   private loadSatelliteIcon(satelliteId: string, imageUrl: string) {    
+    // Ensure proper path resolution - add leading slash if missing
+    const resolvedUrl = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+    
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
+      
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
@@ -534,11 +625,11 @@ export class DeckSatelliteTracker {
         this.updateLayers(true); // Refresh layers with icon
       }
     };
-    img.onerror = (error) => {
-      console.error(`❌ Failed to load ${satelliteId} icon from ${imageUrl}:`, error);
-      // Fall back to circle for this satellite
+    img.onerror = () => {
+      // Fall back to dot icon for this satellite
+      this.createDotIcon(satelliteId);
     };
-    img.src = imageUrl;
+    img.src = resolvedUrl;
   }
 
   private createDotIcon(satelliteId: string) {
@@ -700,23 +791,47 @@ export class DeckSatelliteTracker {
     const zoom = this.map.getZoom();
     const bounds = this.map.getBounds();
     
-    // Use performance manager and LOD manager for adaptive rendering
+    // Enhanced performance management for high satellite counts
     const maxSatellites = this.performanceManager.getMaxSatellites();
     const performanceSkip = this.performanceManager.getLODSkip(zoom);
     
-    // Convert satellites to LOD format and apply filters
+    // Aggressive viewport culling for performance
+    const getViewportMargin = (zoom: number): number => {
+      if (zoom <= 2) return 60; // Wide margin at very low zoom
+      if (zoom <= 4) return 30; // Medium margin at low zoom
+      if (zoom <= 6) return 15; // Smaller margin at medium zoom
+      return 5; // Very tight margin at high zoom
+    };
+    
+    const margin = getViewportMargin(zoom);
+    const expandedBounds = {
+      west: bounds.getWest() - margin,
+      east: bounds.getEast() + margin,
+      south: bounds.getSouth() - margin/2,
+      north: bounds.getNorth() + margin/2
+    };
+    
+    // Show only the tracked satellite when following one
     const satellitesForLOD: SatelliteForLOD[] = Array.from(this.satellites.values())
       .filter(sat => {
-        // Apply type filter
-        if (!this.enabledSatelliteTypes.has(sat.type)) return false;
-        
-        // Apply tracked satellite only filter
-        if (this.showTrackedSatelliteOnly && this.followingSatellite) {
+        // If tracking a satellite, show ONLY that satellite
+        if (this.followingSatellite) {
           return sat.id === this.followingSatellite;
         }
         
+        // If not tracking, apply normal filters
+        if (!this.enabledSatelliteTypes.has(sat.type)) return false;
+        
+        // Aggressive viewport culling for performance
+        const lng = sat.position.lng;
+        const lat = sat.position.lat;
+        if (lng < expandedBounds.west || lng > expandedBounds.east || 
+            lat < expandedBounds.south || lat > expandedBounds.north) {
+          return false;
+        }
+        
         return true;
-      }) // Apply filters
+      })
       .map(sat => ({
         id: sat.id,
         position: sat.position,
@@ -724,16 +839,16 @@ export class DeckSatelliteTracker {
         dimensions: sat.dimensions,
         scaleFactor: sat.scaleFactor,
         isFollowed: this.followingSatellite === sat.id,
-        hasImage: true // All satellites now have icons (images or dots)
+        hasImage: true
       }));
     
-    // Apply LOD filtering
+    // Apply LOD filtering with enhanced performance limits
     const viewport: ViewportInfo = { zoom, bounds };
     const filteredSatellites = this.lodManager.filterSatellitesForLOD(
       satellitesForLOD,
       viewport,
       performanceSkip,
-      maxSatellites
+      Math.min(maxSatellites, 1000) // Cap at 1000 points for performance
     );
     
     // Filter out satellites that should show as icons instead of circles
@@ -744,9 +859,8 @@ export class DeckSatelliteTracker {
     const points = pointSatellites
       .map(lodSat => {
         const sat = this.satellites.get(lodSat.id)!;
-        const baseSize = this.lodManager.getCircleSize(lodSat, zoom, 2); // Use small base size for circles
+        const baseSize = this.lodManager.getCircleSize(lodSat, zoom, 2);
         
-        // Apply tracked satellite size multiplier if this is the followed satellite
         const sizeMultiplier = this.followingSatellite === lodSat.id ? 
           this.trackedSatelliteSizeMultiplier : this.satelliteSizeMultiplier;
         const size = baseSize * sizeMultiplier;
@@ -754,10 +868,8 @@ export class DeckSatelliteTracker {
         // Use smooth position for followed satellites, interpolated for others
         let smoothPos = null;
         if (this.followingSatellite === lodSat.id && this.smoothTracker.isTracking()) {
-          // Use smooth tracker for followed satellite
           smoothPos = this.smoothTracker.getPredictedPosition();
         } else {
-          // Use orbital interpolator for other satellites
           smoothPos = this.getSmoothSatellitePosition(lodSat.id);
         }
         
@@ -766,16 +878,14 @@ export class DeckSatelliteTracker {
         const altitude = smoothPos ? smoothPos.altitude : sat.altitude;
         const velocity = smoothPos ? smoothPos.velocity : sat.velocity;
         
-        // Scale altitude for better visibility - high altitude satellites are too far to see
-        // Use much more aggressive scaling to bring satellites close to surface
-        const scaledAltitude = Math.sqrt(altitude) * 5000; // Square root scaling brings high satellites much closer
+        const scaledAltitude = Math.sqrt(altitude) * 5000;
         
         return {
-          position: [lng, lat, scaledAltitude] as [number, number, number], // Use scaled altitude in meters
+          position: [lng, lat, scaledAltitude] as [number, number, number],
           id: sat.id,
           name: sat.name,
           type: sat.type,
-          altitude: altitude, // Keep original altitude for display
+          altitude: altitude,
           velocity: velocity,
           length: sat.dimensions.length,
           color: this.getColorForType(sat.type),
@@ -786,10 +896,6 @@ export class DeckSatelliteTracker {
     // Update performance metrics
     this.performanceManager.setSatelliteCount(points.length);
     
-    // Only log occasionally to avoid spam
-    if (Math.random() < 0.01) { // 1% chance
-      // Rendering satellites
-    }
     return points;
   }
 
@@ -798,12 +904,13 @@ export class DeckSatelliteTracker {
     const bounds = this.map.getBounds();
     const iconData: any[] = [];
 
-    // Performance optimization: viewport culling for images
+    // Enhanced performance optimization: aggressive viewport culling for images
     const getViewportMargin = (zoom: number): number => {
-      // Smaller margin at higher zoom for better performance
-      if (zoom <= 4) return 45; // Wide margin at zoom 4
-      if (zoom <= 6) return 30; // Medium margin
-      return 15; // Tight margin at high zoom
+      // Much tighter margins for high satellite counts
+      if (zoom <= 2) return 30; // Smaller margin at very low zoom
+      if (zoom <= 4) return 20; // Medium margin at low zoom
+      if (zoom <= 6) return 10; // Small margin at medium zoom
+      return 5; // Very tight margin at high zoom for max performance
     };
 
     const margin = getViewportMargin(zoom);
@@ -814,37 +921,49 @@ export class DeckSatelliteTracker {
       getNorth: () => bounds.getNorth() + margin/2
     };
 
+    // Limit total icons rendered for performance
+    const maxIconsToRender = zoom <= 4 ? 100 : 200;
+    let iconCount = 0;
+
     // Generate icon data for satellites with loaded icons
     this.satelliteIcons.forEach((_, satelliteId) => {
+      // Stop rendering icons if we hit the performance limit
+      if (iconCount >= maxIconsToRender) {
+        return;
+      }
+      
       const satellite = this.satellites.get(satelliteId);
       if (satellite && this.enabledSatelliteTypes.has(satellite.type)) { // Apply type filter
-        // Apply tracked satellite only filter
-        if (this.showTrackedSatelliteOnly && this.followingSatellite && satelliteId !== this.followingSatellite) {
-          return; // Skip this satellite
-        }
-        // Level-of-Detail (LOD) for images:
-        // ISS: Always show as image (iconic satellite)
-        // Tracked satellite: Always show when being followed
-        // Others: Progressive appearance based on zoom
-        let shouldShowIcon = false;
-        if (satelliteId === 'iss') {
-          shouldShowIcon = true; // Always show ISS
-        } else if (this.followingSatellite === satelliteId) {
-          shouldShowIcon = true; // Always show tracked satellite
-        } else if (zoom >= 4) {
-          shouldShowIcon = true; // Show all satellite images at zoom 4+
-        } else if (zoom >= 3) {
-          // At zoom 3, only show every 3rd satellite image to reduce load
-          const satelliteIndex = Array.from(this.satelliteIcons.keys()).indexOf(satelliteId);
-          shouldShowIcon = satelliteIndex % 3 === 0;
+        // If tracking a satellite, show ONLY that satellite icon
+        if (this.followingSatellite && satelliteId !== this.followingSatellite) {
+          return; // Skip all other satellites when tracking
         }
         
-        // Viewport culling: skip satellites outside visible area (except followed satellite)
+        // Enhanced LOD for performance with high satellite counts
+        let shouldShowIcon = false;
+        if (this.followingSatellite === satelliteId) {
+          shouldShowIcon = true; // Always show tracked satellite
+        } else if (satelliteId === 'iss' || satelliteId.includes('iss')) {
+          shouldShowIcon = true; // Always show ISS
+        } else if (zoom >= 5) {
+          shouldShowIcon = true; // Show all at high zoom
+        } else if (zoom >= 4) {
+          // At zoom 4, only show every 2nd satellite to improve performance
+          const satelliteIndex = Array.from(this.satelliteIcons.keys()).indexOf(satelliteId);
+          shouldShowIcon = satelliteIndex % 2 === 0;
+        } else if (zoom >= 3) {
+          // At zoom 3, only show every 4th satellite image for better performance
+          const satelliteIndex = Array.from(this.satelliteIcons.keys()).indexOf(satelliteId);
+          shouldShowIcon = satelliteIndex % 4 === 0;
+        }
+        
+        // Aggressive viewport culling for performance
         const isInView = this.followingSatellite === satelliteId || 
                         satelliteId === 'iss' || 
                         this.isInBounds(satellite.position, expandedBounds);
         
         if (shouldShowIcon && isInView) {
+          iconCount++;
           const baseIconSize = this.getSatelliteImageSize(zoom, satellite.dimensions.width, satelliteId, satellite.scaleFactor);
           // Apply tracked satellite size multiplier if this is the followed satellite
           const sizeMultiplier = this.followingSatellite === satelliteId ? 
@@ -882,7 +1001,6 @@ export class DeckSatelliteTracker {
           iconData.push(data);
         }
       } else {
-        console.warn(`⚠️ Satellite ${satelliteId} has loaded icon but no satellite data`);
       }
     });
     
@@ -972,7 +1090,6 @@ export class DeckSatelliteTracker {
         }
       }
     } catch (error) {
-      console.warn(`Failed to calculate orbit for ${sat.name}:`, error);
     }
     
     return points;
@@ -1088,12 +1205,11 @@ export class DeckSatelliteTracker {
     this.followingSatellite = satelliteId;
     // Reset tracked satellite size when following a new satellite
     this.trackedSatelliteSizeMultiplier = 1.0;
-    // Enable "show tracked satellite only" by default when tracking starts
+    // Always show only tracked satellite when tracking starts
     this.showTrackedSatelliteOnly = true;
     const satellite = this.satellites.get(satelliteId);
     
     if (satellite) {
-      console.log('🚀 Starting satellite tracking for:', satellite.name);
       
       // Stop all existing tracking to avoid interference
       this.stopSimpleTracking();
@@ -1171,7 +1287,7 @@ export class DeckSatelliteTracker {
     this.followingSatellite = satelliteId;
     // Reset tracked satellite size when following a new satellite
     this.trackedSatelliteSizeMultiplier = 1.0;
-    // Enable "show tracked satellite only" by default when tracking starts
+    // Always show only tracked satellite when tracking starts
     this.showTrackedSatelliteOnly = true;
     const satellite = this.satellites.get(satelliteId);
     if (satellite) {
@@ -1225,9 +1341,9 @@ export class DeckSatelliteTracker {
 
   stopFollowing() {
     this.followingSatellite = null;
-    // KEEP "show tracked satellite only" enabled to prevent showing all satellites
-    // This prevents the CPU/memory nightmare when stopping tracking
-    // this.showTrackedSatelliteOnly = false; // DISABLED
+    // When stopping tracking, keep showing only tracked satellite filter to prevent performance issues
+    // User can manually enable other satellite types if needed via filters
+    this.showTrackedSatelliteOnly = true;
     
     // Stop ultra-smooth tracking system
     this.smoothTracker.stopTracking();
@@ -1257,7 +1373,6 @@ export class DeckSatelliteTracker {
 
   // Start ultra-smooth tracking for video-like performance
   private startUltraSmoothTracking(satellite: SatelliteData) {
-    console.log(`🎬 Starting tracking for ${satellite.name}`);
     
     // Stop any existing tracking
     this.stopSimpleTracking();
@@ -1459,7 +1574,6 @@ export class DeckSatelliteTracker {
     const searchResults = document.getElementById('search-results') as HTMLDivElement;
     
     if (!searchInput || !searchResults) {
-      console.warn('⚠️ Search elements not found');
       return;
     }
         
@@ -1485,15 +1599,16 @@ export class DeckSatelliteTracker {
         // Apply type filter first
         if (!this.enabledSatelliteTypes.has(satellite.type)) return false;
         
-        // Search should always show all satellites to allow switching between them
-        // Do NOT apply tracked satellite only filter to search results
+        // Search shows all satellites to allow switching between them
+        // Note: When selected, only that satellite will be visible
         
         // Apply search filter
-        return (satellite.name.toLowerCase().includes(query) ||
+        return ((satellite.name || satellite.id).toLowerCase().includes(query) ||
                 satellite.id.toLowerCase().includes(query) ||
-                satellite.type.toLowerCase().includes(query));
+                satellite.type.toLowerCase().includes(query) ||
+                (satellite.alternateName && satellite.alternateName.toLowerCase().includes(query)));
       })
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
       .slice(0, 10);
     
     matches.forEach(satellite => {
@@ -1504,7 +1619,7 @@ export class DeckSatelliteTracker {
       }
       
       resultDiv.innerHTML = `
-        <div><strong>${satellite.name}</strong></div>
+        <div><strong>${satellite.name || satellite.id}</strong></div>
         <div style="font-size: 11px; color: #ccc;">
           ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | Alt: ${satellite.altitude.toFixed(0)}km
         </div>
@@ -1516,7 +1631,7 @@ export class DeckSatelliteTracker {
       resultDiv.addEventListener('click', () => {
         this.followSatellite(satellite.id);
         resultsContainer.innerHTML = '';
-        (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name;
+        (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name || satellite.id;
         
         // Close the search dropdown
         const searchContent = document.getElementById('search-content');
