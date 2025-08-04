@@ -1,5 +1,5 @@
 // Dynamic satellite data fetcher with TLE from external sources
-import { SatelliteConfig } from './satellite-config';
+import { SatelliteConfig } from './types/satellite';
 
 export interface TLEData {
   id: string;

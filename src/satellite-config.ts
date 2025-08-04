@@ -47,6 +47,28 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     dimensions: { length: 4.2, width: 2.6, height: 2.6 }
   },
 
+  // NASA Earth observation satellites (MODIS)
+  {
+    id: 'terra-25994',
+    name: 'Terra (EOS AM-1)',
+    shortname: 'TERRA',
+    type: 'earth-observation',
+    tle1: '1 25994U 99068A   25214.45123456  .00000534  00000-0  89012-4 0  9995',
+    tle2: '2 25994  98.2054 156.7890 0001234  87.5432 272.6789 14.57000000380000',
+    dimensions: { length: 6.8, width: 3.5, height: 3.1 },
+    image: 'static/images/nasa_modis_terra.png'
+  },
+  {
+    id: 'aqua-27424',
+    name: 'Aqua (EOS PM-1)',
+    shortname: 'AQUA',
+    type: 'earth-observation', 
+    tle1: '1 27424U 02022A   25214.46234567  .00000487  00000-0  81234-4 0  9994',
+    tle2: '2 27424  98.2012 276.8901 0001345  88.6543 271.4567 14.57000000280000',
+    dimensions: { length: 6.8, width: 3.5, height: 3.1 },
+    image: 'static/images/nasa_modis_aqua.png'
+  },
+
   // Starlink communication satellites
   {
     id: 'starlink-1007',

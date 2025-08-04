@@ -8,6 +8,8 @@ export class SearchComponent {
   private callbacks?: SearchCallbacks;
   private selectedIndex = -1;
   private searchResults: HTMLDivElement | null = null;
+  private satellites: SatelliteData[] = [];
+  private followingSatellite: string | null = null;
 
   constructor() {
     this.setupSearchFunctionality();
@@ -24,8 +26,8 @@ export class SearchComponent {
     if (!searchInput || !this.searchResults) return;
     
     searchInput.addEventListener('input', () => {
-      this.clearResults();
       this.selectedIndex = -1;
+      this.performSearch();
     });
 
     // Handle keyboard navigation
@@ -41,7 +43,12 @@ export class SearchComponent {
     });
   }
 
-  performSearch(satellites: SatelliteData[], followingSatellite: string | null): void {
+  setSatellites(satellites: SatelliteData[], followingSatellite: string | null): void {
+    this.satellites = satellites;
+    this.followingSatellite = followingSatellite;
+  }
+
+  performSearch(): void {
     const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
     const searchResults = document.getElementById('search-results') as HTMLDivElement;
     
@@ -54,7 +61,7 @@ export class SearchComponent {
       return;
     }
     
-    const matches = satellites
+    const matches = this.satellites
       .filter(satellite => 
         satellite.name.toLowerCase().includes(query) ||
         satellite.id.toLowerCase().includes(query) ||
@@ -64,38 +71,46 @@ export class SearchComponent {
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 10);
     
-    this.displayResults(matches, followingSatellite);
+    this.displayResults(matches, this.followingSatellite);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
+    console.log('SearchComponent handleKeydown:', e.key, 'active element:', document.activeElement?.id);
+    
     if (!this.searchResults) return;
     
     const results = this.searchResults.querySelectorAll('.search-result');
-    if (results.length === 0) return;
+    if (results.length === 0 && e.key !== 'Escape') return;
 
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
+        e.stopPropagation();
         this.selectedIndex = Math.min(this.selectedIndex + 1, results.length - 1);
         this.updateSelection();
         break;
       case 'ArrowUp':
         e.preventDefault();
+        e.stopPropagation();
         this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
         this.updateSelection();
         break;
       case 'Tab':
-        e.preventDefault();
-        if (e.shiftKey) {
-          this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
-        } else {
-          this.selectedIndex = Math.min(this.selectedIndex + 1, results.length - 1);
+        if (results.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.shiftKey) {
+            this.selectedIndex = Math.max(this.selectedIndex - 1, -1);
+          } else {
+            this.selectedIndex = Math.min(this.selectedIndex + 1, results.length - 1);
+          }
+          this.updateSelection();
         }
-        this.updateSelection();
         break;
       case 'Enter':
-        e.preventDefault();
         if (this.selectedIndex >= 0 && this.selectedIndex < results.length) {
+          e.preventDefault();
+          e.stopPropagation();
           const selectedResult = results[this.selectedIndex] as HTMLElement;
           const satelliteId = selectedResult.dataset.satelliteId;
           const satelliteName = selectedResult.dataset.satelliteName;
@@ -106,6 +121,7 @@ export class SearchComponent {
         break;
       case 'Escape':
         e.preventDefault();
+        e.stopPropagation();
         this.closeSearchDropdown();
         break;
     }
@@ -170,6 +186,7 @@ export class SearchComponent {
   }
 
   private selectSatelliteById(satelliteId: string, satelliteName: string): void {
+    console.log('selectSatelliteById called:', satelliteId, satelliteName);
     const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
     if (searchInput) {
       searchInput.value = satelliteName;
@@ -178,10 +195,13 @@ export class SearchComponent {
     this.clearResults();
     this.selectedIndex = -1;
     
-    // Force close the dropdown by directly manipulating the DOM
+    // Immediately close the dropdown
+    this.closeSearchDropdown();
+    
+    // Also force close with multiple approaches
     setTimeout(() => {
-      this.closeSearchDropdown();
-    }, 0);
+      this.forceCloseDropdown();
+    }, 10);
     
     if (this.callbacks?.onSatelliteSelect) {
       this.callbacks.onSatelliteSelect(satelliteId);
@@ -197,13 +217,46 @@ export class SearchComponent {
   }
 
   private closeSearchDropdown(): void {
+    console.log('closeSearchDropdown called');
     const searchContent = document.getElementById('search-content');
     const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
+    
+    console.log('searchContent:', searchContent, 'trackingItem:', trackingItem);
+    console.log('searchContent active before:', searchContent?.classList.contains('active'));
     
     if (searchContent && trackingItem) {
       searchContent.classList.remove('active');
       trackingItem.classList.remove('active');
+      console.log('searchContent active after:', searchContent?.classList.contains('active'));
     }
+    
+    // Also trigger the cockpit component's close mechanism
+    const closeEvent = new CustomEvent('closeSearchDropdown');
+    document.dispatchEvent(closeEvent);
+  }
+
+  private forceCloseDropdown(): void {
+    console.log('forceCloseDropdown called');
+    
+    // Force remove active class from all possible elements
+    const searchContent = document.getElementById('search-content');
+    if (searchContent) {
+      searchContent.classList.remove('active');
+      searchContent.style.display = 'none';
+      setTimeout(() => {
+        searchContent.style.display = '';
+      }, 100);
+    }
+    
+    // Force remove active class from tracking button
+    const trackingItems = document.querySelectorAll('.banner-item.tracking[data-section="search"]');
+    trackingItems.forEach(item => {
+      item.classList.remove('active');
+    });
+    
+    // Click outside to trigger any other close handlers
+    const outsideElement = document.body;
+    outsideElement.click();
   }
 
   updateSearchInput(satelliteName: string): void {

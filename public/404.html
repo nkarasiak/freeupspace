@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>From Up There</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🛰️</text></svg>" />
+    <script>
+      // GitHub Pages SPA redirect handling
+      // This script captures the intended path and redirects to index.html with the path as a parameter
+      (function() {
+        const path = window.location.pathname;
+        const search = window.location.search;
+        const hash = window.location.hash;
+        
+        // Only redirect if this is a path that looks like our app routes
+        if (path !== '/' && path !== '/404.html') {
+          // Store the original path and redirect to index.html
+          const redirectUrl = '/?' + 
+            'redirect=' + encodeURIComponent(path) + 
+            (search ? '&' + search.slice(1) : '') + 
+            (hash ? '#' + hash.slice(1) : '');
+          
+          window.location.replace(redirectUrl);
+        }
+      })();
+    </script>
+  </head>
+  <body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh;">
+    <div style="text-align: center;">
+      <div style="font-size: 4rem; margin-bottom: 1rem;">🛰️</div>
+      <h1 style="font-size: 2rem; margin: 0 0 1rem 0;">Redirecting...</h1>
+      <p style="opacity: 0.7;">Navigating to the satellite tracker</p>
+    </div>
+  </body>
+</html>

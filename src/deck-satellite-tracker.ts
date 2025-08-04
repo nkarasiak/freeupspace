@@ -2,7 +2,7 @@ import { Deck } from '@deck.gl/core';
 import { ScatterplotLayer, IconLayer, ArcLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap, LngLat } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
-import { SATELLITE_CONFIGS_WITH_STARLINK } from './satellite-config';
+import { SATELLITE_CONFIGS_WITH_STARLINK } from './config/satellites';
 import { SatelliteDataFetcher } from './satellite-data-fetcher';
 import { PerformanceManager } from './performance-manager';
 import { LODManager, ViewportInfo, SatelliteForLOD } from './lod-manager';
@@ -507,6 +507,7 @@ export class DeckSatelliteTracker {
   }
 
   private loadSatelliteIcons() {
+    console.log(`🎨 loadSatelliteIcons() called with ${this.satellites.size} total satellites`);
     // Find all satellites with images from loaded satellites
     const satellitesWithImages = Array.from(this.satellites.values()).filter(sat => sat.image);
     
@@ -522,10 +523,15 @@ export class DeckSatelliteTracker {
     
     console.log(`🖼️ Loading icons for ${satellitesWithImages.length} satellites with images`);
     console.log(`🔵 Creating dot icons for ${satellitesWithoutImages.length} satellites without images`);
+    
+    // Debug Landsat satellites specifically
+    const landsat8 = Array.from(this.satellites.values()).find(sat => sat.id.includes('landsat-8'));
+    const landsat9 = Array.from(this.satellites.values()).find(sat => sat.id.includes('landsat-9'));
+    console.log('🔍 Landsat 8 debug:', landsat8 ? { id: landsat8.id, name: landsat8.name, image: landsat8.image } : 'NOT FOUND');
+    console.log('🔍 Landsat 9 debug:', landsat9 ? { id: landsat9.id, name: landsat9.name, image: landsat9.image } : 'NOT FOUND');
   }
 
-  private loadSatelliteIcon(satelliteId: string, imageUrl: string) {
-    
+  private loadSatelliteIcon(satelliteId: string, imageUrl: string) {    
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
