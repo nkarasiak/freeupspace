@@ -771,6 +771,41 @@ export class DeckSatelliteTracker {
       const gmst = satellite.gstime(currentTime);
       const positionGd = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
       
+      // Calculate bearing from velocity vector
+      let bearing = 0;
+      if (positionAndVelocity.velocity && typeof positionAndVelocity.velocity !== 'boolean') {
+        // Convert ECI velocity to geographic direction
+        const velocityEci = positionAndVelocity.velocity;
+        
+        // Transform velocity from ECI to ECEF (Earth-fixed) coordinates
+        const cosGmst = Math.cos(gmst);
+        const sinGmst = Math.sin(gmst);
+        
+        const vx_ecef = velocityEci.x * cosGmst + velocityEci.y * sinGmst;
+        const vy_ecef = -velocityEci.x * sinGmst + velocityEci.y * cosGmst;
+        const vz_ecef = velocityEci.z;
+        
+        // Convert position to ECEF for local coordinate transformation
+        const lat_rad = positionGd.latitude;
+        const lon_rad = positionGd.longitude;
+        
+        // Transform velocity to local tangent plane (East, North, Up)
+        const cosLat = Math.cos(lat_rad);
+        const sinLat = Math.sin(lat_rad);
+        const cosLon = Math.cos(lon_rad);
+        const sinLon = Math.sin(lon_rad);
+        
+        // East-North-Up transformation
+        const v_east = -sinLon * vx_ecef + cosLon * vy_ecef;
+        const v_north = -sinLat * cosLon * vx_ecef - sinLat * sinLon * vy_ecef + cosLat * vz_ecef;
+        
+        // Calculate bearing (0° = North, 90° = East)
+        bearing = Math.atan2(v_east, v_north) * 180 / Math.PI;
+        
+        // Normalize bearing to 0-360 degrees
+        if (bearing < 0) bearing += 360;
+      }
+      
       const result = {
         longitude: satellite.degreesLong(positionGd.longitude),
         latitude: satellite.degreesLat(positionGd.latitude),
@@ -780,7 +815,8 @@ export class DeckSatelliteTracker {
             Math.pow(positionAndVelocity.velocity.x, 2) + 
             Math.pow(positionAndVelocity.velocity.y, 2) + 
             Math.pow(positionAndVelocity.velocity.z, 2)
-          ) : 0
+          ) : 0,
+        bearing: bearing
       };
       
       // Cache the result if satellite ID is provided
@@ -801,7 +837,7 @@ export class DeckSatelliteTracker {
       return result;
     }
     
-    return { longitude: 0, latitude: 0, altitude: 0, velocity: 0 };
+    return { longitude: 0, latitude: 0, altitude: 0, velocity: 0, bearing: 0 };
   }
 
   private getColorForType(type: string): [number, number, number, number] {

@@ -8,6 +8,7 @@ export interface PredictivePosition {
   velocity: number;
   timestamp: number;
   confidence: number; // 0-1, how accurate this prediction is
+  bearing?: number; // Optional bearing from satellite's movement direction (0-360°)
 }
 
 export interface TrackingState {
@@ -126,10 +127,40 @@ export class SmoothTracker {
       const gmst = satellite.gstime(date);
       const positionGd = satellite.eciToGeodetic(positionEci, gmst);
       
-      // Calculate velocity magnitude
+      // Calculate velocity magnitude and bearing
       let velocity = 0;
+      let bearing = 0;
       if (velocityEci && typeof velocityEci !== 'boolean') {
         velocity = Math.sqrt(velocityEci.x * velocityEci.x + velocityEci.y * velocityEci.y + velocityEci.z * velocityEci.z);
+        
+        // Calculate bearing from velocity vector
+        // Transform velocity from ECI to ECEF (Earth-fixed) coordinates
+        const cosGmst = Math.cos(gmst);
+        const sinGmst = Math.sin(gmst);
+        
+        const vx_ecef = velocityEci.x * cosGmst + velocityEci.y * sinGmst;
+        const vy_ecef = -velocityEci.x * sinGmst + velocityEci.y * cosGmst;
+        const vz_ecef = velocityEci.z;
+        
+        // Convert position to ECEF for local coordinate transformation
+        const lat_rad = positionGd.latitude;
+        const lon_rad = positionGd.longitude;
+        
+        // Transform velocity to local tangent plane (East, North, Up)
+        const cosLat = Math.cos(lat_rad);
+        const sinLat = Math.sin(lat_rad);
+        const cosLon = Math.cos(lon_rad);
+        const sinLon = Math.sin(lon_rad);
+        
+        // East-North-Up transformation
+        const v_east = -sinLon * vx_ecef + cosLon * vy_ecef;
+        const v_north = -sinLat * cosLon * vx_ecef - sinLat * sinLon * vy_ecef + cosLat * vz_ecef;
+        
+        // Calculate bearing (0° = North, 90° = East)
+        bearing = Math.atan2(v_east, v_north) * 180 / Math.PI;
+        
+        // Normalize bearing to 0-360 degrees
+        if (bearing < 0) bearing += 360;
       }
       
       return {
@@ -138,7 +169,8 @@ export class SmoothTracker {
         altitude: positionGd.height,
         velocity,
         timestamp,
-        confidence: 1.0 // Exact calculation
+        confidence: 1.0, // Exact calculation
+        bearing
       };
     }
     
@@ -149,7 +181,8 @@ export class SmoothTracker {
       altitude: 400,
       velocity: 7.66,
       timestamp,
-      confidence: 0.0
+      confidence: 0.0,
+      bearing: 0
     };
   }
 
@@ -157,7 +190,7 @@ export class SmoothTracker {
   private calculatePredictedPosition(timestamp: number): PredictivePosition {
     if (!this.trackingState) {
       return {
-        longitude: 0, latitude: 0, altitude: 400, velocity: 7.66, timestamp, confidence: 0.0
+        longitude: 0, latitude: 0, altitude: 400, velocity: 7.66, timestamp, confidence: 0.0, bearing: 0
       };
     }
 
@@ -185,7 +218,8 @@ export class SmoothTracker {
       altitude: predictedAltitude,
       velocity: lastKnownPosition.velocity,
       timestamp,
-      confidence
+      confidence,
+      bearing: lastKnownPosition.bearing // Keep the last known bearing
     };
   }
 

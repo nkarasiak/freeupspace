@@ -116,13 +116,21 @@ export class SmoothCamera {
       smoothingFactor
     );
 
+    // Calculate target bearing from satellite's movement direction
+    let targetBearing = currentState.bearing; // Default to current bearing
+    if (this.targetPosition.bearing !== undefined) {
+      targetBearing = this.targetPosition.bearing;
+    }
+
+    // Smooth bearing interpolation to avoid sudden jumps
+    const newBearing = this.interpolateBearing(currentState.bearing, targetBearing, smoothingFactor * 0.5);
+
     // Apply the smooth movement
     this.map.jumpTo({
       center: newCenter,
-      // Keep current zoom, pitch, bearing for stable tracking
       zoom: currentState.zoom,
       pitch: currentState.pitch,
-      bearing: currentState.bearing
+      bearing: newBearing // Use automatic bearing based on satellite direction
     });
 
     // Update last known state
@@ -130,7 +138,7 @@ export class SmoothCamera {
       center: newCenter,
       zoom: currentState.zoom,
       pitch: currentState.pitch,
-      bearing: currentState.bearing,
+      bearing: newBearing,
       timestamp: Date.now()
     };
   }
@@ -203,6 +211,37 @@ export class SmoothCamera {
     while (newLng < -180) newLng += 360;
 
     return [newLng, newLat];
+  }
+
+  // Smooth interpolation between bearings (handles 0°/360° wrapping)
+  private interpolateBearing(
+    currentBearing: number,
+    targetBearing: number,
+    factor: number
+  ): number {
+    // Normalize bearings to 0-360 range
+    currentBearing = ((currentBearing % 360) + 360) % 360;
+    targetBearing = ((targetBearing % 360) + 360) % 360;
+    
+    // Calculate the shortest angular distance
+    let diff = targetBearing - currentBearing;
+    
+    // Handle wrapping (take shortest path around the circle)
+    if (Math.abs(diff) > 180) {
+      if (diff > 0) {
+        diff -= 360;
+      } else {
+        diff += 360;
+      }
+    }
+    
+    // Apply smooth interpolation
+    let newBearing = currentBearing + (diff * factor);
+    
+    // Normalize result to 0-360 range
+    newBearing = ((newBearing % 360) + 360) % 360;
+    
+    return newBearing;
   }
 
   // Calculate distance between two geographic points
