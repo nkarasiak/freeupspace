@@ -7,7 +7,8 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     alternateName: 'International Space Station',
     image: 'static/images/ISS.png',
     tle1: '1 25544U 98067A   25216.88307209  .00003454  00000+0  67688-4 0  9997',
-    tle2: '2 25544  51.6362  65.7123 0001818 143.6625 298.7323 15.50331059522717'
+    tle2: '2 25544  51.6362  65.7123 0001818 143.6625 298.7323 15.50331059522717',
+	scaleFactor: 1
   },
   // NASA Earth observation satellites (MODIS) - metadata only
   {
@@ -35,32 +36,32 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
   // Sentinel Earth observation constellation
   {
     id: 'sentinel-1a',
-    alternateName: 'Copernicus SAR',
+    alternateName: 'sentinel-1a - SAR',
     image: 'static/images/esa_sentinel1.png'
   },
   {
     id: 'sentinel-1b',
-    alternateName: 'Copernicus SAR',
+    alternateName: 'sentinel-1b - SAR',
     image: 'static/images/esa_sentinel1.png'
   },
   {
     id: 'sentinel-1c',
-    alternateName: 'Copernicus SAR',
+    alternateName: 'sentinel-1c - SAR',
     image: 'static/images/esa_sentinel1.png'
   },
   {
     id: 'sentinel-2a',
-    alternateName: 'Copernicus MSI',
+    alternateName: 'sentinel-2a - MSI',
     image: 'static/images/esa_sentinel2.png'
   },
   {
     id: 'sentinel-2b',
-    alternateName: 'Copernicus MSI',
+    alternateName: 'sennel-2b - MSI',
     image: 'static/images/esa_sentinel2.png'
   },
   {
     id: 'sentinel-2c',
-    alternateName: 'Copernicus MSI',
+    alternateName: 'sentinel-2c - MSI',
     image: 'static/images/esa_sentinel2.png'
   },
   {

@@ -265,7 +265,7 @@ export class DeckSatelliteTracker {
 
   // Load only ISS immediately for instant tracking
   loadISSOnly() {
-    return this.loadConfigSatelliteById('iss-zarya-25544');
+    return this.loadConfigSatelliteById('iss-zarya');
   }
 
   // Load any satellite from config immediately for instant tracking
@@ -602,7 +602,6 @@ export class DeckSatelliteTracker {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
@@ -625,7 +624,8 @@ export class DeckSatelliteTracker {
         this.updateLayers(true); // Refresh layers with icon
       }
     };
-    img.onerror = () => {
+    img.onerror = (error) => {
+      console.error(`❌ Failed to load satellite image for ${satelliteId} at ${resolvedUrl}:`, error);
       // Fall back to dot icon for this satellite
       this.createDotIcon(satelliteId);
     };
@@ -789,6 +789,52 @@ export class DeckSatelliteTracker {
 
   private generateSatellitePoints(): SatellitePointData[] {
     const zoom = this.map.getZoom();
+    
+    // Fast path for single satellite tracking - bypass all expensive operations
+    if (this.followingSatellite && this.showTrackedSatelliteOnly) {
+      const trackedSat = this.satellites.get(this.followingSatellite);
+      if (trackedSat && trackedSat.position) {
+        // Skip if this satellite has an image AND the icon is loaded (should render as icon instead)
+        if (trackedSat.image && this.satelliteIcons.has(this.followingSatellite)) {
+          return [];
+        }
+        
+        // If satellite has an image but icon isn't loaded yet, load it and show point temporarily
+        if (trackedSat.image && !this.satelliteIcons.has(this.followingSatellite)) {
+          this.loadSatelliteIcon(this.followingSatellite, trackedSat.image);
+          // Fall through to show point until icon loads
+        }
+        
+        const baseSize = 2; // Fixed size for performance
+        const size = baseSize * this.trackedSatelliteSizeMultiplier;
+        
+        // Use smooth position if available for ultra-smooth tracking
+        let position = trackedSat.position;
+        let altitude = trackedSat.altitude;
+        let velocity = trackedSat.velocity;
+        
+        const smoothPos = this.smoothTracker.getPredictedPosition();
+        if (smoothPos) {
+          position = { lng: smoothPos.longitude, lat: smoothPos.latitude } as any;
+          altitude = smoothPos.altitude;
+          velocity = smoothPos.velocity;
+        }
+        
+        return [{
+          position: [position.lng, position.lat, altitude],
+          size,
+          color: [255, 255, 0, 255], // Yellow for tracked satellite
+          id: trackedSat.id,
+          name: trackedSat.name,
+          type: trackedSat.type,
+          altitude: altitude,
+          velocity: velocity,
+          length: 0
+        }];
+      }
+      return [];
+    }
+    
     const bounds = this.map.getBounds();
     
     // Enhanced performance management for high satellite counts
@@ -900,6 +946,35 @@ export class DeckSatelliteTracker {
   }
 
   private generateSatelliteIconData(): any[] {
+    // Fast path for single satellite tracking - only process tracked satellite
+    if (this.followingSatellite && this.showTrackedSatelliteOnly) {
+      const trackedSat = this.satellites.get(this.followingSatellite);
+      if (trackedSat && trackedSat.position && this.satelliteIcons.has(this.followingSatellite)) {
+        // Use smooth position if available
+        let position = trackedSat.position;
+        let altitude = trackedSat.altitude;
+        
+        const smoothPos = this.smoothTracker.getPredictedPosition();
+        if (smoothPos) {
+          position = { lng: smoothPos.longitude, lat: smoothPos.latitude } as any;
+          altitude = smoothPos.altitude;
+        }
+        
+        // Calculate proper size using scaleFactor and zoom
+        const zoom = this.map.getZoom();
+        const iconSize = this.getSatelliteImageSize(zoom, trackedSat.dimensions.width, this.followingSatellite, trackedSat.scaleFactor);
+        
+        return [{
+          position: [position.lng, position.lat, altitude],
+          icon: this.followingSatellite,
+          size: iconSize,
+          angle: 0,
+          color: [255, 255, 255, 255]
+        }];
+      }
+      return [];
+    }
+
     const zoom = this.map.getZoom();
     const bounds = this.map.getBounds();
     const iconData: any[] = [];
@@ -1041,6 +1116,21 @@ export class DeckSatelliteTracker {
   private generateOrbitPaths(): any[] {
     if (!this.showOrbits) return [];
     
+    // Fast path for single satellite tracking - only calculate orbit for tracked satellite
+    if (this.followingSatellite && this.showTrackedSatelliteOnly) {
+      const trackedSat = this.satellites.get(this.followingSatellite);
+      if (trackedSat) {
+        const orbitPoints = this.calculateOrbitPath(trackedSat);
+        if (orbitPoints && orbitPoints.length > 0) {
+          return [{
+            path: orbitPoints,
+            color: [255, 165, 0, 255] // Orange color for orbit path
+          }];
+        }
+      }
+      return [];
+    }
+    
     const orbitData: any[] = [];
     
     Array.from(this.satellites.values())
@@ -1101,26 +1191,31 @@ export class DeckSatelliteTracker {
     const zoom = this.map.getZoom();
     const bounds = this.map.getBounds();
     
-    // Light throttling for force updates to prevent excessive rendering during map panning
-    if (!forceUpdate) {
-      // Throttle background updates more aggressively
-      const zoomChanged = Math.abs(zoom - this.lastLayerUpdateZoom) > 0.3;
-      const boundsChanged = !this.lastLayerUpdateBounds || 
-        Math.abs(bounds.getCenter().lng - this.lastLayerUpdateBounds.getCenter().lng) > 0.1 ||
-        Math.abs(bounds.getCenter().lat - this.lastLayerUpdateBounds.getCenter().lat) > 0.1;
-      
-      const shouldUpdate = now - this.layerUpdateThrottle > this.LAYER_UPDATE_THROTTLE || 
-                          zoomChanged || boundsChanged;
-      
-      if (!shouldUpdate) return;
+    // Ultra-fast updates for single satellite tracking (60fps)
+    if (this.followingSatellite && this.showTrackedSatelliteOnly) {
+      if (!forceUpdate && now - this.layerUpdateThrottle < 16) return; // 60fps
     } else {
-      // Allow 30fps updates when tracking any satellite for smooth tracking
-      if (this.followingSatellite) {
-        // Allow 30fps updates for smooth tracking
-        if (now - this.layerUpdateThrottle < 33) return;
+      // Light throttling for force updates to prevent excessive rendering during map panning
+      if (!forceUpdate) {
+        // Throttle background updates more aggressively
+        const zoomChanged = Math.abs(zoom - this.lastLayerUpdateZoom) > 0.3;
+        const boundsChanged = !this.lastLayerUpdateBounds || 
+          Math.abs(bounds.getCenter().lng - this.lastLayerUpdateBounds.getCenter().lng) > 0.1 ||
+          Math.abs(bounds.getCenter().lat - this.lastLayerUpdateBounds.getCenter().lat) > 0.1;
+        
+        const shouldUpdate = now - this.layerUpdateThrottle > this.LAYER_UPDATE_THROTTLE || 
+                            zoomChanged || boundsChanged;
+        
+        if (!shouldUpdate) return;
       } else {
-        // More aggressive throttling for force updates (10fps max)
-        if (now - this.layerUpdateThrottle < 100) return;
+        // Allow 30fps updates when tracking any satellite for smooth tracking
+        if (this.followingSatellite) {
+          // Allow 30fps updates for smooth tracking
+          if (now - this.layerUpdateThrottle < 33) return;
+        } else {
+          // More aggressive throttling for force updates (10fps max)
+          if (now - this.layerUpdateThrottle < 100) return;
+        }
       }
     }
     
@@ -1152,28 +1247,52 @@ export class DeckSatelliteTracker {
     ];
 
     // Add icon layers for satellites with images (only for visible satellites)
-    const visibleSatelliteIds = new Set(satelliteIconData.map(d => d.id));
-    this.satelliteIcons.forEach((iconMapping, satelliteId) => {
-      if (visibleSatelliteIds.has(satelliteId)) {
-        const satelliteData = satelliteIconData.filter(d => d.id === satelliteId);
-        if (satelliteData.length > 0) {
-          layers.push(
-            new IconLayer({
-              id: `${satelliteId}-icon`,
-              data: satelliteData,
-              pickable: false,
-              iconAtlas: iconMapping.atlas,
-              iconMapping: iconMapping.mapping,
-              getIcon: (d: any) => d.icon,
-              sizeScale: 1,
-              getPosition: (d: any) => d.position,
-              getSize: (d: any) => d.size,
-              getColor: [255, 255, 255, 255]
-            })
-          );
-        }
+    const visibleSatelliteIds = new Set(satelliteIconData.map(d => d.id || d.icon));
+    
+    // Special handling for tracked satellite when only showing tracked satellite
+    if (this.followingSatellite && this.showTrackedSatelliteOnly && satelliteIconData.length > 0) {
+      const trackedIconMapping = this.satelliteIcons.get(this.followingSatellite);
+      
+      if (trackedIconMapping) {
+        layers.push(
+          new IconLayer({
+            id: `${this.followingSatellite}-icon`,
+            data: satelliteIconData,
+            pickable: false,
+            iconAtlas: trackedIconMapping.atlas,
+            iconMapping: trackedIconMapping.mapping,
+            getIcon: (d: any) => d.icon,
+            sizeScale: 1,
+            getPosition: (d: any) => d.position,
+            getSize: (d: any) => d.size,
+            getColor: [255, 255, 255, 255]
+          })
+        );
       }
-    });
+    } else {
+      // Normal handling for multiple satellites
+      this.satelliteIcons.forEach((iconMapping, satelliteId) => {
+        if (visibleSatelliteIds.has(satelliteId)) {
+          const satelliteData = satelliteIconData.filter(d => (d.id || d.icon) === satelliteId);
+          if (satelliteData.length > 0) {
+            layers.push(
+              new IconLayer({
+                id: `${satelliteId}-icon`,
+                data: satelliteData,
+                pickable: false,
+                iconAtlas: iconMapping.atlas,
+                iconMapping: iconMapping.mapping,
+                getIcon: (d: any) => d.icon,
+                sizeScale: 1,
+                getPosition: (d: any) => d.position,
+                getSize: (d: any) => d.size,
+                getColor: [255, 255, 255, 255]
+              })
+            );
+          }
+        }
+      });
+    }
 
     // Add orbit paths layer
     if (orbitPaths.length > 0) {
@@ -1471,6 +1590,13 @@ export class DeckSatelliteTracker {
 
 
   private processSatelliteUpdates(bounds: any, zoom: number, now: number, lastFullUpdate: number, FULL_UPDATE_INTERVAL: number, UPDATE_INTERVAL: number) {
+    // Fast path for single satellite tracking - skip all other satellite updates
+    if (this.followingSatellite && this.showTrackedSatelliteOnly) {
+      // Only the smooth tracker needs to update the tracked satellite
+      // Skip all other expensive operations
+      return;
+    }
+    
     // Skip position updates for tracked satellite - smooth tracking handles it
     // Only update other satellites for rendering
     
@@ -1527,6 +1653,16 @@ export class DeckSatelliteTracker {
     
     const updatePositions = () => {
       const now = Date.now();
+      
+      // Fast path for single satellite tracking - skip performance monitoring
+      if (this.followingSatellite && this.showTrackedSatelliteOnly) {
+        // Only run minimal update loop for single satellite
+        if (!this.isPaused && now - lastUpdate >= 16) { // 60fps for single satellite
+          lastUpdate = now;
+        }
+        this.animationId = requestAnimationFrame(updatePositions);
+        return;
+      }
       
       // Update performance monitoring
       this.performanceManager.updateFrameRate();
