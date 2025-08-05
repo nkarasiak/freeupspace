@@ -15,10 +15,12 @@
         
         // Only redirect if this is a path that looks like our app routes
         if (path !== '/' && path !== '/404.html') {
-          // Check if this is a /tracker/id path
+          // Check if this is a /satellite-id path or old /tracker/id path
+          const satelliteMatch = path.match(/^\/([^\/]+)$/);
           const trackerMatch = path.match(/^\/tracker\/([^\/]+)$/);
-          if (trackerMatch) {
-            // Redirect directly to index.html with the tracker path preserved
+          
+          if (satelliteMatch || trackerMatch) {
+            // Redirect directly to index.html with the path preserved
             const redirectUrl = '/?' + 
               'redirect=' + encodeURIComponent(path) + 
               (search ? '&' + search.slice(1) : '') + 

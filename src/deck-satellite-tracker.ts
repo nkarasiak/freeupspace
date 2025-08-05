@@ -178,6 +178,15 @@ export class DeckSatelliteTracker {
   }
 
   private initializeDeck() {
+    // Suppress the calculateFogMatrix warning for globe projection
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === 'string' && args[0].includes('calculateFogMatrix is not supported on globe projection')) {
+        return; // Suppress this specific warning
+      }
+      originalWarn.apply(console, args);
+    };
+    
     // Create canvas element for deck.gl first
     const canvas = document.createElement('canvas');
     canvas.id = 'deck-canvas';
@@ -218,6 +227,7 @@ export class DeckSatelliteTracker {
         touchRotate: false,
         keyboard: true
       },
+      // Remove parameters that may cause issues with globe projection
       onViewStateChange: ({ viewState }) => {
         // Sync with MapLibre view but don't set pitch
         // Let MapLibre handle pitch control entirely
@@ -228,7 +238,11 @@ export class DeckSatelliteTracker {
           // Deliberately omit pitch - let MapLibre control it
         });
       },
-      onClick: this.handleClick.bind(this)
+      onClick: this.handleClick.bind(this),
+      _typedArrayManagerProps: {
+        overAlloc: 1,
+        poolSize: 0
+      }
     });
 
     // Add aggressive pitch override after initialization
