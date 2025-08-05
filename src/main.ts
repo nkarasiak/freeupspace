@@ -323,10 +323,10 @@ class SatelliteTracker3D {
   }
 
   private focusOnISS() {
-    const iss = this.satelliteTracker.getSatellites().get('iss-zarya-25544');
+    const iss = this.satelliteTracker.getSatellites().get('iss-zarya');
     if (iss) {
       // Use the follow functionality instead of just flying to it
-      this.satelliteTracker.followSatellite('iss-zarya-25544');
+      this.satelliteTracker.followSatellite('iss-zarya');
     }
   }
 
@@ -361,7 +361,7 @@ class SatelliteTracker3D {
   private startTracking() {
     this.map.on('load', () => {
       // Restore satellite tracking from URL if specified, otherwise default to ISS
-      const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya-25544';
+      const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya';
       const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
       
       

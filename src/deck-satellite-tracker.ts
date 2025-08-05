@@ -103,6 +103,7 @@ export class DeckSatelliteTracker {
   // Cockpit visibility
   private isCockpitVisible = true;
   
+  
   // Dynamic satellite data fetcher
   private satelliteDataFetcher = new SatelliteDataFetcher();
   
@@ -1539,6 +1540,7 @@ export class DeckSatelliteTracker {
     this.showMessage(this.showOrbits ? '🛰️ Orbits shown' : '🛰️ Orbits hidden', 'info');
   }
 
+
   togglePause() {
     this.isPaused = !this.isPaused;
     this.showMessage(this.isPaused ? '⏸️ Satellite updates paused' : '▶️ Satellite updates resumed', 'info');
@@ -1864,6 +1866,7 @@ export class DeckSatelliteTracker {
   getShowTrackedSatelliteOnly(): boolean {
     return this.showTrackedSatelliteOnly;
   }
+
 
   // Get satellite counts by type
   getSatelliteCountsByType(): Record<string, number> {

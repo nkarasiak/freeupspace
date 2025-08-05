@@ -203,7 +203,7 @@ export class CommandPalette {
     
     // If search term is empty, show popular satellites
     if (!lowerSearchTerm) {
-      const popularSatellites = ['iss-zarya-25544', 'hubble', 'yam-10', 'noaa-20'];
+      const popularSatellites = ['iss-zarya', 'hubble', 'yam-10', 'noaa-20'];
       popularSatellites.forEach(id => {
         const satellite = satellites.get(id);
         if (satellite) {
