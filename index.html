@@ -726,7 +726,7 @@
 
     <!-- Command Palette Hint -->
     <div id="command-hint" class="command-hint">
-      Press <span class="command-shortcut">/</span> to open command palette
+      Press <span class="command-shortcut">/</span> to search satellites • <span class="command-shortcut">Esc</span> to stop tracking
     </div>
     
     <!-- Simple Top Banner -->
@@ -828,36 +828,7 @@
           });
         });
 
-        // Handle banner tracking item click - open command palette
-        const trackingItem = document.querySelector('.banner-item.tracking[data-section="search"]');
-        if (trackingItem) {
-          trackingItem.addEventListener('click', function(e) {
-            e.stopPropagation();
-            
-            // Close any other open dropdown first
-            closeAllDropdowns();
-            
-            // Open command palette with search functionality
-            const commandPalette = document.getElementById('command-palette');
-            if (commandPalette) {
-              commandPalette.classList.add('active');
-              
-              // Focus the command input and set it to search mode
-              setTimeout(() => {
-                const commandInput = document.getElementById('command-input');
-                if (commandInput) {
-                  commandInput.value = 'track ';
-                  commandInput.focus();
-                  commandInput.setSelectionRange(6, 6); // Position cursor after "track "
-                  
-                  // Trigger input event to show satellite suggestions
-                  const inputEvent = new Event('input', { bubbles: true });
-                  commandInput.dispatchEvent(inputEvent);
-                }
-              }, 100);
-            }
-          });
-        }
+        // Tracking item click is now handled by CockpitComponent in TypeScript
 
         // No additional gauge functionality needed for now
         

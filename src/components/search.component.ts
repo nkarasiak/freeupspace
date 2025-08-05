@@ -1,14 +1,13 @@
-import { SatelliteData } from '../types/satellite';
 
 export interface SearchCallbacks {
   onSatelliteSelect: (satelliteId: string) => void;
+  getSatellites?: () => Map<string, any>;
 }
 
 export class SearchComponent {
   private callbacks?: SearchCallbacks;
   private selectedIndex = -1;
   private searchResults: HTMLDivElement | null = null;
-  private satellites: SatelliteData[] = [];
   private followingSatellite: string | null = null;
 
   constructor() {
@@ -43,8 +42,7 @@ export class SearchComponent {
     });
   }
 
-  setSatellites(satellites: SatelliteData[], followingSatellite: string | null): void {
-    this.satellites = satellites;
+  setFollowingSatellite(followingSatellite: string | null): void {
     this.followingSatellite = followingSatellite;
   }
 
@@ -61,18 +59,40 @@ export class SearchComponent {
       return;
     }
     
-    const matches = this.satellites
-      .filter(satellite => 
-        (satellite.name && satellite.name.toLowerCase().includes(query)) ||
-        satellite.id.toLowerCase().includes(query) ||
-        satellite.type.toLowerCase().includes(query) ||
-        (satellite.shortname && satellite.shortname.toLowerCase().includes(query)) ||
-        (satellite.alternateName && satellite.alternateName.toLowerCase().includes(query))
-      )
-.sort((a, b) => (a.alternateName || a.name || a.id).localeCompare(b.alternateName || b.name || b.id))
-      .slice(0, 10);
+    // Use the same logic as command palette - get satellites from callback
+    if (!this.callbacks?.getSatellites) {
+      this.clearResults();
+      return;
+    }
     
-    this.displayResults(matches, this.followingSatellite);
+    const satellites = this.callbacks.getSatellites();
+    const satelliteResults: Array<{id: string, name: string, altitude?: number, satellite: any}> = [];
+    
+    // Convert satellites map to array - same as command palette
+    satellites.forEach((satellite, id) => {
+      satelliteResults.push({
+        id,
+        name: satellite.shortname || satellite.alternateName || satellite.name || id,
+        altitude: satellite.altitude,
+        satellite
+      });
+    });
+    
+    // Filter satellites based on search query - same logic as command palette
+    const filteredSatellites = satelliteResults.filter(sat => {
+      const matchesName = sat.name.toLowerCase().includes(query);
+      const matchesId = sat.id.toLowerCase().includes(query);
+      
+      return matchesName || matchesId;
+    });
+    
+    // Sort alphabetically - same as command palette
+    filteredSatellites.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Take first 10 results
+    const matches = filteredSatellites.slice(0, 10);
+    
+    this.displaySearchResults(matches, this.followingSatellite);
   }
 
   private handleKeydown(e: KeyboardEvent): void {
@@ -141,38 +161,36 @@ export class SearchComponent {
     });
   }
 
-  private displayResults(matches: SatelliteData[], followingSatellite: string | null): void {
+  private displaySearchResults(matches: Array<{id: string, name: string, altitude?: number, satellite: any}>, followingSatellite: string | null): void {
     const searchResults = document.getElementById('search-results') as HTMLDivElement;
     if (!searchResults) return;
 
     searchResults.innerHTML = '';
     this.selectedIndex = -1;
     
-    matches.forEach((satellite, index) => {
+    matches.forEach((match, index) => {
       const resultDiv = document.createElement('div');
       resultDiv.className = `search-result command-item ${index === 0 ? 'selected' : ''}`;
-      if (followingSatellite === satellite.id) {
+      if (followingSatellite === match.id) {
         resultDiv.className += ' following';
       }
       
       // Store satellite data for keyboard selection
-      const displayName = satellite.alternateName || satellite.name || satellite.id;
-      resultDiv.dataset.satelliteId = satellite.id;
-      resultDiv.dataset.satelliteName = displayName;
+      resultDiv.dataset.satelliteId = match.id;
+      resultDiv.dataset.satelliteName = match.name;
+      
+      const altitudeInfo = match.altitude ? ` • Alt: ${match.altitude.toFixed(0)}km` : '';
       
       resultDiv.innerHTML = `
         <div class="command-icon">🛰️</div>
         <div class="command-text">
-          <div class="command-title">${displayName}</div>
-          <div class="command-description">Track ${displayName} • Alt: ${satellite.altitude.toFixed(0)}km</div>
-          <div style="font-size: 10px; color: #aaa; margin-top: 2px;">
-            ${satellite.type} | ${satellite.dimensions.length}×${satellite.dimensions.width}×${satellite.dimensions.height}m | ${satellite.position.lat.toFixed(2)}°, ${satellite.position.lng.toFixed(2)}°
-          </div>
+          <div class="command-title">${match.name}</div>
+          <div class="command-description">Track ${match.name}${altitudeInfo}</div>
         </div>
       `;
       
       resultDiv.addEventListener('click', () => {
-        this.selectSatellite(satellite);
+        this.selectSatelliteById(match.id, match.name);
       });
       
       searchResults.appendChild(resultDiv);
@@ -192,10 +210,6 @@ export class SearchComponent {
     }
   }
 
-  private selectSatellite(satellite: SatelliteData): void {
-    const displayName = satellite.alternateName || satellite.name || satellite.id;
-    this.selectSatelliteById(satellite.id, displayName);
-  }
 
   private selectSatelliteById(satelliteId: string, satelliteName: string): void {
     const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
@@ -269,6 +283,14 @@ export class SearchComponent {
     const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
     if (searchInput) {
       searchInput.value = satelliteName;
+    }
+  }
+
+  clearSearchInput(): void {
+    const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.value = '';
+      this.clearResults();
     }
   }
 }

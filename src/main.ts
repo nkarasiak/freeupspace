@@ -3,6 +3,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { DeckSatelliteTracker } from './deck-satellite-tracker';
 import { URLState } from './url-state';
 import { CommandPalette } from './command-palette';
+import { SearchComponent } from './components/search.component';
+import { CockpitComponent } from './components/cockpit.component';
 
 class SatelliteTracker3D {
   private map!: MapLibreMap;
@@ -11,18 +13,30 @@ class SatelliteTracker3D {
   private isGlobeMode = true; // Start with globe projection
   private urlState = new URLState();
   private commandPalette!: CommandPalette;
+  private searchComponent!: SearchComponent;
+  private _cockpitComponent!: CockpitComponent;
   private initialZoom!: number;
   private isInitializing = true;
   private lastURLState = { zoom: 0, pitch: 0, bearing: 0, satellite: '' }; // Track URL-relevant changes
+  private lastFollowingSatellite: string | null = null; // Track when satellite changes
 
   constructor() {
     this.initializeMap();
     this.satelliteTracker = new DeckSatelliteTracker(this.map);
     this.satelliteTracker.setOnTrackingChangeCallback(() => this.updateURL());
+    this.satelliteTracker.setOnSatellitesLoadedCallback(() => {
+      // Refresh command palette when satellites are loaded
+      this.commandPalette?.refreshSatelliteList();
+    });
     this.setupEventListeners();
     this.setupURLSharing();
     this.setupCommandPalette();
+    this.setupSearchComponent();
+    this.setupCockpitComponent();
     this.startTracking();
+    
+    // Temporary debugging - expose tracker to console
+    (window as any).satelliteTracker = this.satelliteTracker;
   }
 
   private initializeMap() {
@@ -285,11 +299,23 @@ class SatelliteTracker3D {
         return;
       }
       
+      // Let deck-satellite-tracker handle Shift+Arrow keys for satellite resizing
+      if (e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        console.log('Main.ts: Letting deck-satellite-tracker handle Shift+Arrow');
+        return; // Don't handle here, let deck-satellite-tracker handle it
+      }
+      
       if (e.key === 'g' || e.key === 'G') {
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           this.toggleProjection();
         }
+      }
+      
+      // Escape key to stop satellite tracking
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.satelliteTracker.stopFollowing();
       }
     });
     
@@ -497,20 +523,32 @@ class SatelliteTracker3D {
       onTrackSatellite: (satelliteId: string) => {
         this.satelliteTracker.followSatellite(satelliteId);
       },
-      onToggleNight: () => {
-        if (this.isDayMode) {
-          this.toggleBasemap();
-        }
-      },
-      onToggleDay: () => {
-        if (!this.isDayMode) {
-          this.toggleBasemap();
-        }
+      getSatellites: () => {
+        return this.satelliteTracker.getSatellites();
+      }
+    });
+  }
+
+  private setupSearchComponent() {
+    this.searchComponent = new SearchComponent();
+    
+    // Set up search component callbacks - same as command palette
+    this.searchComponent.setCallbacks({
+      onSatelliteSelect: (satelliteId: string) => {
+        this.satelliteTracker.followSatellite(satelliteId);
       },
       getSatellites: () => {
         return this.satelliteTracker.getSatellites();
       }
     });
+  }
+
+  private setupCockpitComponent() {
+    this._cockpitComponent = new CockpitComponent();
+    // Pass the command palette instance so it can open it
+    this._cockpitComponent.setCommandPalette(this.commandPalette);
+    // Reference it to satisfy TypeScript unused variable check
+    void this._cockpitComponent;
   }
 
   private applyPitchOverride() {
@@ -527,26 +565,44 @@ class SatelliteTracker3D {
   private setupCustomPitchControl() {
     let isDragging = false;
     let lastY = 0;
+    let lastX = 0;
     
     
     // Attach to document to catch all events
     document.addEventListener('mousedown', (e) => {
-      if (e.ctrlKey || e.metaKey) {
+      const isTracking = this.satelliteTracker.getFollowingSatellite() !== null;
+      
+      // In tracking mode: any drag works, otherwise need Ctrl
+      if (isTracking || e.ctrlKey || e.metaKey) {
         isDragging = true;
         lastY = e.clientY;
+        lastX = e.clientX;
         e.preventDefault();
       }
     });
     
     document.addEventListener('mousemove', (e) => {
-      if (isDragging && (e.ctrlKey || e.metaKey)) {
+      const isTracking = this.satelliteTracker.getFollowingSatellite() !== null;
+      
+      // In tracking mode: any drag works, otherwise need Ctrl  
+      if (isDragging && (isTracking || e.ctrlKey || e.metaKey)) {
         const deltaY = lastY - e.clientY;
+        const deltaX = e.clientX - lastX;
+        
+        // Control pitch with vertical mouse movement
         const currentPitch = this.map.getPitch();
         const newPitch = Math.min(85, Math.max(0, currentPitch + deltaY * 0.3));
-        
         this.map.setPitch(newPitch);
         
+        // Control bearing with horizontal mouse movement (only in tracking mode)
+        if (isTracking) {
+          const currentBearing = this.map.getBearing();
+          const newBearing = (currentBearing + deltaX * 0.5) % 360;
+          this.map.setBearing(newBearing);
+        }
+        
         lastY = e.clientY;
+        lastX = e.clientX;
         e.preventDefault();
       }
     });
@@ -571,6 +627,25 @@ class SatelliteTracker3D {
     const trackedSpeedElement = document.getElementById('tracked-speed');
 
     if (satelliteCountElement) satelliteCountElement.textContent = totalCount.toString();
+    
+    // Update search component with current following satellite
+    this.searchComponent?.setFollowingSatellite(followingSatellite);
+    
+    // Only update search input when the satellite actually changes
+    if (followingSatellite !== this.lastFollowingSatellite) {
+      this.lastFollowingSatellite = followingSatellite;
+      
+      if (followingSatellite) {
+        const trackedSatellite = satellites.get(followingSatellite);
+        if (trackedSatellite) {
+          // Update search input with current satellite name only when satellite changes
+          this.searchComponent?.updateSearchInput(trackedSatellite.shortname || trackedSatellite.name);
+        }
+      } else {
+        // Clear search input only when stopping tracking
+        this.searchComponent?.updateSearchInput('');
+      }
+    }
     
     // Update tracked satellite information
     if (followingSatellite) {

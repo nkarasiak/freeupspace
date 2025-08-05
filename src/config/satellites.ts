@@ -69,7 +69,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     alternateName: 'EarthDaily YAM-10',
     image: 'static/images/earthdaily_yam10.webp',
     defaultBearing: 0,
-    scaleFactor: 1.0
+    scaleFactor: 2.0
   }
 ];
 

@@ -27,7 +27,7 @@ export class BrowserRouter {
    * Parse a browser path and return the appropriate route
    * Examples:
    * - /browser/category/earth-observation
-   * - /browser/satellite/iss-zarya-25544
+   * - /browser/satellite/iss-zarya
    * - /browser/search?name=starlink&type=communication
    */
   parseRoute(path: string, params?: URLSearchParams): BrowserRoute | null {

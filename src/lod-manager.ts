@@ -61,12 +61,12 @@ export class LODManager {
     
     // Priority filtering: Always show followed satellite and ISS
     const prioritySatellites = satellites.filter(sat => 
-      sat.isFollowed || sat.id === 'iss-zarya-25544'
+      sat.isFollowed || sat.id === 'iss-zarya'
     );
 
     // Get regular satellites (excluding priority ones)
     const regularSatellites = satellites.filter(sat => 
-      !sat.isFollowed && sat.id !== 'iss-zarya-25544'
+      !sat.isFollowed && sat.id !== 'iss-zarya'
     );
 
     // Apply viewport culling first (most expensive filter)
@@ -165,7 +165,7 @@ export class LODManager {
     const lodLevel = this.getLODLevel(zoom);
     
     // ISS always gets icon at zoom 2+
-    if (satellite.id === 'iss-zarya-25544') {
+    if (satellite.id === 'iss-zarya') {
       return zoom >= 2;
     }
 
@@ -202,7 +202,7 @@ export class LODManager {
     const multiplier = sizeMultipliers[lodLevel];
     
     // Special handling for ISS and followed satellites
-    if (satellite.id === 'iss-zarya-25544' || satellite.isFollowed) {
+    if (satellite.id === 'iss-zarya' || satellite.isFollowed) {
       return Math.max(baseSize * multiplier * 1.5, 12); // Always visible
     }
 
@@ -225,7 +225,7 @@ export class LODManager {
     const multiplier = sizeMultipliers[lodLevel];
     
     // Special handling for ISS and followed satellites - slightly bigger but still small
-    if (satellite.id === 'iss-zarya-25544' || satellite.isFollowed) {
+    if (satellite.id === 'iss-zarya' || satellite.isFollowed) {
       return Math.max(baseSize * multiplier * 2, 3); // Max 6 pixels for followed
     }
 
@@ -234,7 +234,7 @@ export class LODManager {
 
   // Get update priority for satellites
   getUpdatePriority(satellite: SatelliteForLOD, zoom: number): 'high' | 'medium' | 'low' {
-    if (satellite.isFollowed || satellite.id === 'iss-zarya-25544') {
+    if (satellite.isFollowed || satellite.id === 'iss-zarya') {
       return 'high';
     }
 

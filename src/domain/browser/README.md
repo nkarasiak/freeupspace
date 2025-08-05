@@ -25,9 +25,9 @@ The browser module supports the following URL patterns:
 
 ### Individual Satellite Pages
 ```
-/browser/satellite/iss-zarya-25544
-/browser/satellite/hubble-20580
-/browser/satellite/landsat-8-39084
+/browser/satellite/iss-zarya
+/browser/satellite/hubble
+/browser/satellite/landsat-8
 ```
 
 ### Search with Filters

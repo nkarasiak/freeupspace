@@ -2,10 +2,15 @@ import { SatelliteData } from '../types/satellite';
 
 export class CockpitComponent {
   private isHidden = false;
+  private commandPalette?: any; // Will hold reference to CommandPalette instance
   
   constructor() {
     this.setupEventListeners();
     this.setupDropdownFunctionality();
+  }
+
+  setCommandPalette(commandPalette: any): void {
+    this.commandPalette = commandPalette;
   }
 
   private setupEventListeners(): void {
@@ -55,30 +60,28 @@ export class CockpitComponent {
     if (trackingItem) {
       trackingItem.addEventListener('click', (e) => {
         e.stopPropagation();
-        const content = document.getElementById('search-content');
         
-        if (content) {
-          // If this dropdown is already active, close it
-          if (activeDropdown === content) {
-            closeDropdown(content, trackingItem as HTMLElement);
-            return;
+        // Close any other open dropdown first
+        closeAllDropdowns();
+        
+        // Open command palette instead of cockpit dropdown
+        if (this.commandPalette) {
+          // Use the CommandPalette's open method which properly clears the input
+          this.commandPalette.open();
+        } else {
+          console.warn('CommandPalette not available - falling back to manual open');
+          // Fallback: manually open command palette
+          const commandPalette = document.getElementById('command-palette');
+          if (commandPalette) {
+            commandPalette.classList.add('active');
+            setTimeout(() => {
+              const commandInput = document.getElementById('command-input') as HTMLInputElement;
+              if (commandInput) {
+                commandInput.value = '';
+                commandInput.focus();
+              }
+            }, 100);
           }
-          
-          // Close any other open dropdown first
-          closeAllDropdowns();
-          
-          // Open this dropdown
-          content.classList.add('active');
-          (trackingItem as HTMLElement).classList.add('active');
-          activeDropdown = content;
-          
-          // Auto-focus search input
-          setTimeout(() => {
-            const searchInput = document.getElementById('satellite-search') as HTMLInputElement;
-            if (searchInput) {
-              searchInput.focus();
-            }
-          }, 100);
         }
       });
     }

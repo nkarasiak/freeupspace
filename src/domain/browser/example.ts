@@ -37,7 +37,7 @@ const browser = await initializeBrowser('browser-container');
 browser.showCategory('earth-observation');
 
 // 3. Navigate to specific satellite
-browser.showSatellite('iss-zarya-25544');
+browser.showSatellite('iss-zarya');
 
 // 4. Search with filters
 browser.search({

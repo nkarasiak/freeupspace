@@ -60,6 +60,7 @@ export class DeckSatelliteTracker {
   private isPaused = false;
   private satelliteIcons: Map<string, any> = new Map();
   private onTrackingChangeCallback?: () => void;
+  private onSatellitesLoadedCallback?: () => void;
   
   // Simple real-time tracking
   private trackingInterval: number | null = null;
@@ -124,6 +125,10 @@ export class DeckSatelliteTracker {
 
   setOnTrackingChangeCallback(callback: () => void) {
     this.onTrackingChangeCallback = callback;
+  }
+
+  setOnSatellitesLoadedCallback(callback: () => void) {
+    this.onSatellitesLoadedCallback = callback;
   }
 
   private onStopFollowingCallback?: () => void;
@@ -302,6 +307,9 @@ export class DeckSatelliteTracker {
             this.createDotIcon(satelliteConfig.id);
           }
           
+          // Notify that satellites are loaded
+          this.onSatellitesLoadedCallback?.();
+          
           return true;
         }
       } catch (error) {
@@ -420,6 +428,9 @@ export class DeckSatelliteTracker {
         // Silently skip satellites with invalid TLE data
       }
     });
+    
+    // Notify that initial config satellites are loaded
+    this.onSatellitesLoadedCallback?.();
   }
 
   private async loadSampleSatellites() {
@@ -575,6 +586,9 @@ export class DeckSatelliteTracker {
         } catch (error) {
         }
       });
+      
+      // Notify that satellites are loaded
+      this.onSatellitesLoadedCallback?.();
       
     }
   }
@@ -963,7 +977,8 @@ export class DeckSatelliteTracker {
         
         // Calculate proper size using scaleFactor and zoom
         const zoom = this.map.getZoom();
-        const iconSize = this.getSatelliteImageSize(zoom, trackedSat.dimensions.width, this.followingSatellite, trackedSat.scaleFactor);
+        const baseIconSize = this.getSatelliteImageSize(zoom, trackedSat.dimensions.width, this.followingSatellite, trackedSat.scaleFactor);
+        const iconSize = baseIconSize * this.trackedSatelliteSizeMultiplier;
         
         return [{
           position: [position.lng, position.lat, altitude],
@@ -1460,16 +1475,17 @@ export class DeckSatelliteTracker {
   }
 
   stopFollowing() {
-    this.followingSatellite = null;
-    // When stopping tracking, keep showing only tracked satellite filter to prevent performance issues
-    // User can manually enable other satellite types if needed via filters
+    // Don't clear followingSatellite - keep it for display but stop camera tracking
+    // Keep showing only the current satellite to prevent performance issues  
     this.showTrackedSatelliteOnly = true;
     
-    // Stop ultra-smooth tracking system
-    this.smoothTracker.stopTracking();
+    // Only stop camera tracking, keep satellite position updates running
     this.smoothCamera.stopSmoothTracking();
     
-    this.stopSimpleTracking();
+    // Don't stop smoothTracker or stopSimpleTracking - let satellite continue its orbit
+    // this.smoothTracker.stopTracking();
+    // this.stopSimpleTracking();
+    
     this.updateLayers();
     
     // Notify about tracking change
@@ -1932,6 +1948,7 @@ export class DeckSatelliteTracker {
         return;
       }
 
+
       switch (e.key) {
         case 'ArrowUp':
           if (e.shiftKey) {
@@ -1943,6 +1960,7 @@ export class DeckSatelliteTracker {
         case 'ArrowDown':
           if (e.shiftKey) {
             e.preventDefault();
+            console.log('Decreasing satellite size');
             this.decreaseSatelliteSize();
           }
           break;

@@ -10,6 +10,7 @@ export interface TLEData {
 }
 
 export interface SatelliteOverride {
+  id?: string; // Optional override for satellite ID
   name?: string;
   shortname?: string;
   type?: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
@@ -38,6 +39,7 @@ export class SatelliteDataFetcher {
   private setupDefaultOverrides() {
     // ISS override with detailed info
     this.overrides.set('ISS (ZARYA)', {
+      id: 'iss-zarya', // Force specific ID to match config and app expectations
       name: 'International Space Station',
       shortname: 'ISS',
       type: 'scientific',
@@ -377,7 +379,7 @@ export class SatelliteDataFetcher {
     
     // Merge TLE data with overrides
     const config: SatelliteConfig = {
-      id: tleData.id,
+      id: override?.id || tleData.id, // Use override ID if specified
       name: override?.name || tleData.name,
       shortname: override?.shortname,
       type: override?.type || 'communication',

@@ -12,16 +12,17 @@ export class CommandPalette {
   private palette: HTMLElement;
   private input: HTMLInputElement;
   private results: HTMLElement;
-  private commands: Command[] = [];
-  private filteredCommands: Command[] = [];
+  private satelliteResults: Array<{id: string, name: string, altitude?: number}> = [];
+  private filteredSatellites: Array<{id: string, name: string, altitude?: number}> = [];
   private selectedIndex = 0;
   private isOpen = false;
   private hint: HTMLElement;
+  private virtualScrollOffset = 0;
+  private readonly itemHeight = 60; // Height of each satellite item
+  private readonly maxVisibleItems = 8; // Max items to render at once
   
   // Callbacks
   private onTrackSatellite?: (satelliteId: string) => void;
-  private onToggleNight?: () => void;
-  private onToggleDay?: () => void;
   private getSatellites?: () => Map<string, any>;
 
   constructor() {
@@ -40,56 +41,40 @@ export class CommandPalette {
 
   setCallbacks(callbacks: {
     onTrackSatellite?: (satelliteId: string) => void;
-    onToggleNight?: () => void;
-    onToggleDay?: () => void;
     getSatellites?: () => Map<string, any>;
   }) {
     this.onTrackSatellite = callbacks.onTrackSatellite;
-    this.onToggleNight = callbacks.onToggleNight;
-    this.onToggleDay = callbacks.onToggleDay;
     this.getSatellites = callbacks.getSatellites;
     
-    this.initializeCommands();
+    this.initializeSatellites();
   }
 
-  private initializeCommands() {
-    this.commands = [
-      {
-        id: 'track',
-        title: 'Track Satellite',
-        description: 'Search and track a satellite',
-        icon: '🎯',
-        shortcut: 'track',
-        keywords: ['track', 'satellite', 'follow', 'find'],
-        execute: () => this.startTrackCommand()
-      },
-      {
-        id: 'night',
-        title: 'Night Mode',
-        description: 'Switch to night/dark basemap',
-        icon: '🌙',
-        shortcut: 'night',
-        keywords: ['night', 'dark', 'mode', 'basemap'],
-        execute: () => {
-          this.onToggleNight?.();
-          this.close();
-        }
-      },
-      {
-        id: 'day',
-        title: 'Day Mode',
-        description: 'Switch to day/satellite basemap',
-        icon: '☀️',
-        shortcut: 'day',
-        keywords: ['day', 'light', 'mode', 'basemap', 'satellite'],
-        execute: () => {
-          this.onToggleDay?.();
-          this.close();
-        }
-      }
-    ];
+  private initializeSatellites() {
+    this.refreshSatelliteList();
+  }
+
+  public refreshSatelliteList() {
+    if (!this.getSatellites) {
+      return;
+    }
     
-    this.filteredCommands = [...this.commands];
+    const satellites = this.getSatellites();
+    this.satelliteResults = [];
+    
+    // Convert satellites map to array
+    satellites.forEach((satellite, id) => {
+      this.satelliteResults.push({
+        id,
+        name: satellite.shortname || satellite.alternateName || satellite.name || id,
+        altitude: satellite.altitude
+      });
+    });
+    
+    // Sort alphabetically for better UX
+    this.satelliteResults.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Initially show all satellites
+    this.filteredSatellites = [...this.satelliteResults];
   }
 
   private setupEventListeners() {
@@ -153,117 +138,29 @@ export class CommandPalette {
     const query = this.input.value.trim();
     const lowerQuery = query.toLowerCase();
     
-    // Check if this looks like a track command with satellite search
-    if (lowerQuery.startsWith('track ') && lowerQuery.length > 6) {
-      const satelliteName = query.slice(6); // Remove "track "
-      this.showSatelliteSearchResults(satelliteName);
-      return;
-    }
-    
-    // If query is empty, show all commands
+    // Filter satellites based on search query
     if (query === '') {
-      this.filteredCommands = [...this.commands];
+      // Show all satellites when no search query
+      this.filteredSatellites = [...this.satelliteResults];
     } else {
-      // Search commands without requiring "/" prefix
-      this.filteredCommands = this.commands.filter(command => {
-        const matchesTitle = command.title.toLowerCase().includes(lowerQuery);
-        const matchesDescription = command.description.toLowerCase().includes(lowerQuery);
-        const matchesShortcut = command.shortcut?.toLowerCase().includes(lowerQuery);
-        const matchesKeywords = command.keywords?.some(keyword => 
-          keyword.toLowerCase().includes(lowerQuery)
-        );
+      // Search satellites
+      this.filteredSatellites = this.satelliteResults.filter(satellite => {
+        const matchesName = satellite.name.toLowerCase().includes(lowerQuery);
+        const matchesId = satellite.id.toLowerCase().includes(lowerQuery);
         
-        return matchesTitle || matchesDescription || matchesShortcut || matchesKeywords;
+        return matchesName || matchesId;
       });
     }
     
     this.selectedIndex = 0;
-    this.renderResults();
+    this.virtualScrollOffset = 0;
+    this.renderSatelliteResults();
   }
 
-  private startTrackCommand() {
-    // Set input to "track " and position cursor for typing
-    this.input.value = 'track ';
-    this.input.setSelectionRange(6, 6); // Position cursor after "track "
-    
-    // Show initial satellite suggestions
-    this.showSatelliteSearchResults('');
-  }
-
-  private showSatelliteSearchResults(searchTerm: string) {
-    if (!this.getSatellites) {
-      this.results.innerHTML = '<div class="command-item">No satellites available</div>';
-      return;
-    }
-    
-    const satellites = this.getSatellites();
-    const matchingSatellites: Array<{id: string, name: string}> = [];
-    
-    const lowerSearchTerm = searchTerm.toLowerCase().trim();
-    
-    // If search term is empty, show popular satellites
-    if (!lowerSearchTerm) {
-      const popularSatellites = ['iss-zarya', 'hubble', 'yam-10', 'noaa-20'];
-      popularSatellites.forEach(id => {
-        const satellite = satellites.get(id);
-        if (satellite) {
-          matchingSatellites.push({
-            id,
-            name: satellite.shortname || satellite.alternateName || satellite.name || id
-          });
-        }
-      });
-      
-      // Add a few more satellites to show more options
-      let count = 0;
-      satellites.forEach((satellite, id) => {
-        if (count >= 10) return;
-        if (!popularSatellites.includes(id)) {
-          matchingSatellites.push({
-            id,
-            name: satellite.shortname || satellite.alternateName || satellite.name || id
-          });
-          count++;
-        }
-      });
-    } else {
-      // Search with the provided term
-      satellites.forEach((satellite, id) => {
-        const matchesName = satellite.name && satellite.name.toLowerCase().includes(lowerSearchTerm);
-        const matchesShortname = satellite.shortname?.toLowerCase().includes(lowerSearchTerm);
-        const matchesAlternateName = satellite.alternateName?.toLowerCase().includes(lowerSearchTerm);
-        const matchesId = id.toLowerCase().includes(lowerSearchTerm);
-        
-        if (matchesName || matchesShortname || matchesAlternateName || matchesId) {
-          matchingSatellites.push({
-            id, 
-            name: satellite.shortname || satellite.alternateName || satellite.name || id
-          });
-        }
-      });
-      
-      // Sort by relevance (exact matches first, then alphabetical)
-      matchingSatellites.sort((a, b) => {
-        const aExact = a.name.toLowerCase() === lowerSearchTerm || a.id.toLowerCase() === lowerSearchTerm;
-        const bExact = b.name.toLowerCase() === lowerSearchTerm || b.id.toLowerCase() === lowerSearchTerm;
-        
-        if (aExact && !bExact) return -1;
-        if (!aExact && bExact) return 1;
-        
-        return a.name.localeCompare(b.name);
-      });
-    }
-    
-    // Limit results to prevent UI slowdown
-    const limitedResults = matchingSatellites.slice(0, 15);
-    
-    this.showSatelliteResults(limitedResults);
-  }
-
-  private showSatelliteResults(satellites: Array<{id: string, name: string}>) {
+  private renderSatelliteResults() {
     this.results.innerHTML = '';
     
-    if (satellites.length === 0) {
+    if (this.filteredSatellites.length === 0) {
       const noResults = document.createElement('div');
       noResults.className = 'command-item';
       noResults.innerHTML = `
@@ -277,19 +174,33 @@ export class CommandPalette {
       return;
     }
     
-    satellites.forEach((satellite, index) => {
+    // Virtual scrolling implementation
+    const totalItems = this.filteredSatellites.length;
+    const startIndex = Math.max(0, Math.min(this.virtualScrollOffset, totalItems - this.maxVisibleItems));
+    const endIndex = Math.min(startIndex + this.maxVisibleItems, totalItems);
+    
+    // Create container for virtual scroll
+    const container = document.createElement('div');
+    container.style.position = 'relative';
+    container.style.height = `${totalItems * this.itemHeight}px`;
+    
+    // Create visible items
+    for (let i = startIndex; i < endIndex; i++) {
+      const satellite = this.filteredSatellites[i];
       const item = document.createElement('div');
-      item.className = `command-item ${index === 0 ? 'selected' : ''}`;
+      item.className = `command-item ${i === this.selectedIndex ? 'selected' : ''}`;
+      item.style.position = 'absolute';
+      item.style.top = `${i * this.itemHeight}px`;
+      item.style.width = '100%';
+      item.style.height = `${this.itemHeight}px`;
       
-      // Get satellite data for altitude info
-      const satelliteData = this.getSatellites?.()?.get(satellite.id);
-      const altitudeInfo = satelliteData ? ` • Alt: ${satelliteData.altitude.toFixed(0)}km` : '';
+      const altitudeInfo = satellite.altitude ? ` • Alt: ${satellite.altitude.toFixed(0)}km` : '';
       
       item.innerHTML = `
         <div class="command-icon">🛰️</div>
         <div class="command-text">
           <div class="command-title">${satellite.name}</div>
-          <div class="command-description">Track ${satellite.name}${altitudeInfo}</div>
+          <div class="command-description">${satellite.name}${altitudeInfo}</div>
         </div>
       `;
       
@@ -298,81 +209,60 @@ export class CommandPalette {
         this.close();
       });
       
-      this.results.appendChild(item);
-    });
+      container.appendChild(item);
+    }
     
-    this.selectedIndex = 0;
+    this.results.appendChild(container);
+    
+    // Set max height and enable scrolling
+    this.results.style.maxHeight = `${this.maxVisibleItems * this.itemHeight}px`;
+    this.results.style.overflowY = 'auto';
   }
 
-  private renderResults() {
-    this.results.innerHTML = '';
-    
-    this.filteredCommands.forEach((command, index) => {
-      const item = document.createElement('div');
-      item.className = `command-item ${index === this.selectedIndex ? 'selected' : ''}`;
-      
-      const shortcutHtml = command.shortcut ? 
-        `<div class="command-shortcut">${command.shortcut}</div>` : '';
-      
-      item.innerHTML = `
-        <div class="command-icon">${command.icon}</div>
-        <div class="command-text">
-          <div class="command-title">${command.title}</div>
-          <div class="command-description">${command.description}</div>
-        </div>
-        ${shortcutHtml}
-      `;
-      
-      item.addEventListener('click', () => {
-        this.selectedIndex = index;
-        this.executeSelected();
-      });
-      
-      this.results.appendChild(item);
-    });
-  }
 
   private selectNext() {
-    const maxIndex = this.results.children.length - 1;
-    this.selectedIndex = Math.min(this.selectedIndex + 1, maxIndex);
-    this.updateSelection();
-  }
-
-  private selectPrevious() {
-    this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
-    this.updateSelection();
-  }
-
-  private updateSelection() {
-    const items = this.results.querySelectorAll('.command-item');
-    items.forEach((item, index) => {
-      item.classList.toggle('selected', index === this.selectedIndex);
-    });
-  }
-
-  private executeSelected() {
-    const hasResults = this.results.children.length > 0;
-    if (!hasResults) return;
-    
-    // Check if we're showing satellite results vs command results
-    const firstItem = this.results.children[0];
-    if (firstItem.querySelector('.command-icon')?.textContent === '🛰️') {
-      // This is a satellite result - trigger the click
-      const selectedItem = this.results.children[this.selectedIndex] as HTMLElement;
-      selectedItem.click();
-    } else {
-      // This is a command result
-      const command = this.filteredCommands[this.selectedIndex];
-      if (command) {
-        command.execute();
-      }
+    const maxIndex = this.filteredSatellites.length - 1;
+    if (this.selectedIndex < maxIndex) {
+      this.selectedIndex++;
+      this.updateVirtualScroll();
+      this.renderSatelliteResults();
     }
   }
 
-  private open() {
+  private selectPrevious() {
+    if (this.selectedIndex > 0) {
+      this.selectedIndex--;
+      this.updateVirtualScroll();
+      this.renderSatelliteResults();
+    }
+  }
+
+  private updateVirtualScroll() {
+    // Ensure selected item is visible in virtual scroll
+    if (this.selectedIndex < this.virtualScrollOffset) {
+      this.virtualScrollOffset = this.selectedIndex;
+    } else if (this.selectedIndex >= this.virtualScrollOffset + this.maxVisibleItems) {
+      this.virtualScrollOffset = this.selectedIndex - this.maxVisibleItems + 1;
+    }
+  }
+
+  private executeSelected() {
+    if (this.filteredSatellites.length === 0 || this.selectedIndex >= this.filteredSatellites.length) {
+      return;
+    }
+    
+    const selectedSatellite = this.filteredSatellites[this.selectedIndex];
+    this.onTrackSatellite?.(selectedSatellite.id);
+    this.close();
+  }
+
+  public open() {
     this.isOpen = true;
     this.palette.classList.add('active');
     this.input.value = '';
+    
+    // Refresh satellite list to get latest data
+    this.refreshSatelliteList();
     
     // Prevent canvas from stealing focus
     const canvas = document.getElementById('deck-canvas') as HTMLCanvasElement;
@@ -397,8 +287,9 @@ export class CommandPalette {
     }, 350);
     
     this.selectedIndex = 0;
-    this.filteredCommands = [...this.commands];
-    this.renderResults();
+    this.virtualScrollOffset = 0;
+    this.filteredSatellites = [...this.satelliteResults];
+    this.renderSatelliteResults();
     this.hideHint();
   }
 
