@@ -78,12 +78,40 @@ export class URLState {
 
   getInitialZoom(): number {
     const urlParams = new URLSearchParams(window.location.search);
-    return parseFloat(urlParams.get('zoom') || '2');
+    const providedZoom = urlParams.get('zoom');
+    
+    // If zoom is explicitly provided, use it
+    if (providedZoom !== null) {
+      return parseFloat(providedZoom);
+    }
+    
+    // If we're on a satellite path (not homepage), provide better defaults
+    const path = window.location.pathname;
+    const satelliteMatch = path.match(/^\/([^\/]+)$/);
+    if (satelliteMatch && path !== '/') {
+      return 4; // Better default zoom for satellite tracking
+    }
+    
+    return 5; // Default for homepage
   }
 
   getInitialPitch(): number {
     const urlParams = new URLSearchParams(window.location.search);
-    return parseFloat(urlParams.get('pitch') || '0');
+    const providedPitch = urlParams.get('pitch');
+    
+    // If pitch is explicitly provided, use it
+    if (providedPitch !== null) {
+      return parseFloat(providedPitch);
+    }
+    
+    // If we're on a satellite path (not homepage), provide better defaults
+    const path = window.location.pathname;
+    const satelliteMatch = path.match(/^\/([^\/]+)$/);
+    if (satelliteMatch && path !== '/') {
+      return 60; // Better default pitch for satellite tracking (looking up)
+    }
+    
+    return 0; // Default for homepage
   }
 
   getInitialBearing(): number {

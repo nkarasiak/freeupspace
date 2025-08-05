@@ -15,12 +15,16 @@ export class SatelliteDataService extends EventTarget {
   }
 
   private loadSatelliteConfigs(): void {
+    console.log(`🐛 loadSatelliteConfigs: Processing ${SATELLITE_CONFIGS_WITH_STARLINK.length} configs`);
+    
     SATELLITE_CONFIGS_WITH_STARLINK.forEach(config => {
       try {
         // Skip configs without TLE data - they will be loaded from external sources
         if (!config.tle1 || !config.tle2) {
           return;
         }
+        
+        console.log(`🐛 Loading satellite from service config: ${config.id}`);
         
         const position = SatelliteCalculator.calculatePosition(config.tle1, config.tle2);
         
@@ -63,7 +67,8 @@ export class SatelliteDataService extends EventTarget {
         console.error(`❌ Error loading satellite ${config.id}:`, error);
       }
     });
-
+    
+    console.log(`🐛 loadSatelliteConfigs: Loaded ${this.satellites.size} satellites`);
   }
 
   getSatellites(): Map<string, SatelliteData> {

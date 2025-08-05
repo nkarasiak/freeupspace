@@ -64,3 +64,29 @@
   border-left-color: #00d4ff;
   color: #ffffff;
 }
+
+.search-loading, .search-error {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.search-loading {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(0, 150, 255, 0.1);
+  border: 1px solid rgba(0, 150, 255, 0.2);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.search-error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}

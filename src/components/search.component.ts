@@ -1,7 +1,18 @@
 
+import { SatelliteDataFetcher } from '../satellite-data-fetcher';
+
 export interface SearchCallbacks {
   onSatelliteSelect: (satelliteId: string) => void;
   getSatellites?: () => Map<string, any>;
+}
+
+interface SearchResult {
+  id: string;
+  name: string;
+  altitude?: number;
+  type?: string;
+  satellite?: any; // For loaded satellites
+  isLoaded?: boolean; // To distinguish loaded vs external satellites
 }
 
 export class SearchComponent {
@@ -9,6 +20,8 @@ export class SearchComponent {
   private selectedIndex = -1;
   private searchResults: HTMLDivElement | null = null;
   private followingSatellite: string | null = null;
+  private satelliteDataFetcher = new SatelliteDataFetcher();
+  private searchTimeout: number | null = null;
 
   constructor() {
     this.setupSearchFunctionality();
@@ -59,40 +72,93 @@ export class SearchComponent {
       return;
     }
     
-    // Use the same logic as command palette - get satellites from callback
-    if (!this.callbacks?.getSatellites) {
-      this.clearResults();
-      return;
+    // Clear previous timeout
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
     }
     
-    const satellites = this.callbacks.getSatellites();
-    const satelliteResults: Array<{id: string, name: string, altitude?: number, satellite: any}> = [];
-    
-    // Convert satellites map to array - same as command palette
-    satellites.forEach((satellite, id) => {
-      satelliteResults.push({
-        id,
-        name: satellite.shortname || satellite.alternateName || satellite.name || id,
-        altitude: satellite.altitude,
-        satellite
-      });
-    });
-    
-    // Filter satellites based on search query - same logic as command palette
-    const filteredSatellites = satelliteResults.filter(sat => {
-      const matchesName = sat.name.toLowerCase().includes(query);
-      const matchesId = sat.id.toLowerCase().includes(query);
+    // Debounce search to avoid too many API calls
+    this.searchTimeout = window.setTimeout(async () => {
+      console.log(`🔍 Starting external search for: "${query}"`);
+      await this.performExternalSearch(query);
+    }, 300);
+  }
+
+  private async performExternalSearch(query: string): Promise<void> {
+    const searchResults = document.getElementById('search-results') as HTMLDivElement;
+    if (!searchResults) return;
+
+    try {
+      // Show loading indicator
+      searchResults.innerHTML = '<div class="search-loading">🔍 Searching satellites...</div>';
+      searchResults.style.display = 'block';
+
+      // First check loaded satellites (for instant results)
+      const loadedResults: SearchResult[] = [];
+      if (this.callbacks?.getSatellites) {
+        const satellites = this.callbacks.getSatellites();
+        satellites.forEach((satellite, id) => {
+          const name = satellite.shortname || satellite.alternateName || satellite.name || id;
+          if (name.toLowerCase().includes(query) || id.toLowerCase().includes(query)) {
+            loadedResults.push({
+              id,
+              name,
+              altitude: satellite.altitude,
+              type: satellite.type,
+              satellite,
+              isLoaded: true
+            });
+          }
+        });
+      }
+
+      // Search external satellite database
+      console.log(`🔍 Fetching external satellites for search...`);
+      const allSatellites = await this.satelliteDataFetcher.fetchSatellites(['all']);
+      console.log(`🔍 Found ${allSatellites.length} external satellites`);
+      const externalResults: SearchResult[] = [];
       
-      return matchesName || matchesId;
-    });
+      // Filter external satellites based on search query
+      for (const sat of allSatellites) {
+        if (externalResults.length >= 50) break; // Limit results for performance
+        
+        const name = sat.alternateName || sat.name || sat.id;
+        if (name.toLowerCase().includes(query) || sat.id.toLowerCase().includes(query)) {
+          // Avoid duplicates with loaded satellites
+          if (!loadedResults.some(loaded => loaded.id === sat.id)) {
+            externalResults.push({
+              id: sat.id,
+              name: name,
+              type: sat.type || 'communication',
+              isLoaded: false
+            });
+          }
+        }
+      }
+
+      // Combine and display results
+      const filteredSatellites: SearchResult[] = [...loadedResults, ...externalResults];
     
-    // Sort alphabetically - same as command palette
-    filteredSatellites.sort((a, b) => a.name.localeCompare(b.name));
-    
-    // Take first 10 results
-    const matches = filteredSatellites.slice(0, 10);
-    
-    this.displaySearchResults(matches, this.followingSatellite);
+      // Sort alphabetically - prioritize loaded satellites first, then alphabetical
+      filteredSatellites.sort((a, b) => {
+        // Loaded satellites first
+        if (a.isLoaded && !b.isLoaded) return -1;
+        if (!a.isLoaded && b.isLoaded) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      // Take first 10 results
+      const matches = filteredSatellites.slice(0, 10);
+      
+      console.log(`🔍 Search results for "${query}": ${matches.length} matches`);
+      matches.forEach(match => console.log(`  - ${match.name} (${match.id}) ${match.isLoaded ? '[LOADED]' : '[EXTERNAL]'}`));
+      
+      this.displaySearchResults(matches, this.followingSatellite);
+      
+    } catch (error) {
+      console.error('Search error:', error);
+      searchResults.innerHTML = '<div class="search-error">⚠️ Search failed. Please try again.</div>';
+    }
   }
 
   private handleKeydown(e: KeyboardEvent): void {
@@ -161,7 +227,7 @@ export class SearchComponent {
     });
   }
 
-  private displaySearchResults(matches: Array<{id: string, name: string, altitude?: number, satellite: any}>, followingSatellite: string | null): void {
+  private displaySearchResults(matches: SearchResult[], followingSatellite: string | null): void {
     const searchResults = document.getElementById('search-results') as HTMLDivElement;
     if (!searchResults) return;
 

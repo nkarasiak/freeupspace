@@ -8,7 +8,7 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
     image: 'static/images/ISS.png',
     tle1: '1 25544U 98067A   25216.88307209  .00003454  00000+0  67688-4 0  9997',
     tle2: '2 25544  51.6362  65.7123 0001818 143.6625 298.7323 15.50331059522717',
-	scaleFactor: 1
+    scaleFactor: 3.0
   },
   // NASA Earth observation satellites (MODIS) - metadata only
   {

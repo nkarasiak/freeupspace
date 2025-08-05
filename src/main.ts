@@ -60,7 +60,7 @@ class SatelliteTracker3D {
         layers: []
       },
       center: initialCenter,
-      zoom: initialSatellite ? 2 : this.initialZoom, // Start at global zoom if satellite specified
+      zoom: initialSatellite ? 4 : this.initialZoom, // Start at safe zoom level to avoid terrain tile errors
       pitch: initialPitch, // Use pitch from URL
       bearing: initialBearing, // Use bearing from URL
       attributionControl: false, // Disable default attribution control to avoid duplicates
@@ -175,28 +175,55 @@ class SatelliteTracker3D {
   }
 
   private add3DTerrain() {
-    // Add terrain source using Terrarium terrain data (free)
-    this.map.addSource('terrain', {
-      type: 'raster-dem',
-      tiles: [
-        'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
-      ],
-      minzoom: 0,
-      maxzoom: 15,
-      tileSize: 256,
-      encoding: 'terrarium' // Terrarium encoding format
-    });
+    try {
+      // Add terrain source using Terrarium terrain data (free)
+      this.map.addSource('terrain', {
+        type: 'raster-dem',
+        tiles: [
+          'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+        ],
+        minzoom: 4,
+        maxzoom: 15,
+        tileSize: 256,
+        encoding: 'terrarium' // Terrarium encoding format
+      });
 
-    // Add terrain layer with exaggerated elevation for better visibility from space
-    this.map.setTerrain({
-      source: 'terrain',
-      exaggeration: 3 // Exaggerate elevation by 3x for dramatic effect from satellite view
-    });
+      // Only enable terrain if we're at a safe zoom level
+      const currentZoom = this.map.getZoom();
+      if (currentZoom >= 4) {
+        try {
+          this.map.setTerrain({
+            source: 'terrain',
+            exaggeration: 3 // Exaggerate elevation by 3x for dramatic effect from satellite view
+          });
+        } catch (error) {
+          console.warn('Failed to set terrain immediately, will retry on zoom:', error);
+        }
+      } else {
+        // Wait for zoom to reach safe level before enabling terrain
+        const onZoomEnd = () => {
+          if (this.map.getZoom() >= 4) {
+            this.map.off('zoomend', onZoomEnd);
+            try {
+              this.map.setTerrain({
+                source: 'terrain',
+                exaggeration: 3
+              });
+            } catch (error) {
+              console.warn('Failed to set terrain on zoom end:', error);
+            }
+          }
+        };
+        this.map.on('zoomend', onZoomEnd);
+      }
 
-    // Apply pitch override after terrain is added
-    setTimeout(() => {
-      this.applyPitchOverride();
-    }, 100);
+      // Apply pitch override after terrain is added
+      setTimeout(() => {
+        this.applyPitchOverride();
+      }, 100);
+    } catch (error) {
+      console.warn('Failed to add 3D terrain:', error);
+    }
   }
 
   private setGlobeProjection() {
@@ -400,6 +427,14 @@ class SatelliteTracker3D {
         const satelliteLoaded = this.satelliteTracker.loadConfigSatelliteById(satelliteToTrack);
         
         if (satelliteLoaded) {
+          // Clear any satellites that might have been loaded and keep only ISS
+          this.satelliteTracker.clearAllSatellitesExceptISS();
+          
+          // For homepage (default ISS), disable external satellite loading to keep it fast
+          if (isDefaultISS) {
+            this.satelliteTracker.disableExternalSatelliteLoading();
+          }
+          
           // Start layers and background updates immediately
           this.satelliteTracker.updateLayers();
           this.satelliteTracker.startBackgroundUpdates();
@@ -421,10 +456,14 @@ class SatelliteTracker3D {
               bearingToUse
             );
             
-            // Load all other satellites in background (non-blocking)
-            setTimeout(async () => {
-              await this.satelliteTracker.initialize();
-            }, 1000);
+            // Only load additional satellites if explicitly requested, not on homepage
+            if (!isDefaultISS) {
+              // Re-enable external satellite loading for specific satellite requests
+              this.satelliteTracker.enableExternalSatelliteLoading();
+              setTimeout(async () => {
+                await this.satelliteTracker.initialize();
+              }, 1000);
+            }
             
           }, 100); // Very short delay for satellite tracking
           
@@ -434,45 +473,57 @@ class SatelliteTracker3D {
           }, 2000); // Shorter timeout for instant tracking
         }
       } else {
-        // For non-ISS satellites, use the full initialization
+        // For non-config satellites, load just the specific satellite first
         setTimeout(async () => {
+          // Re-enable external satellite loading for specific satellite requests
+          this.satelliteTracker.enableExternalSatelliteLoading();
           
-          // Initialize satellite tracker
-          await this.satelliteTracker.initialize();
+          // Try to load just the specific satellite we need
+          const targetSatellite = await this.satelliteTracker.loadSpecificSatellite(satelliteToTrack);
           
-          // Try to track satellite from URL (config satellites are now loaded)
-          if (satelliteToTrack) {
-            const satellites = this.satelliteTracker.getSatellites();
-            if (satellites.has(satelliteToTrack)) {
-              const zoomToUse = this.initialZoom;
-              const pitchToUse = this.urlState.getInitialPitch();
+          if (targetSatellite) {
+            // Start layers and updates with just this satellite
+            this.satelliteTracker.updateLayers();
+            this.satelliteTracker.startBackgroundUpdates();
+            
+            const zoomToUse = this.initialZoom;
+            const pitchToUse = this.urlState.getInitialPitch();
+            
+            // Track the satellite immediately
+            setTimeout(() => {
+              const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
+              const bearingToUse = satellite?.defaultBearing ?? this.urlState.getInitialBearing();
               
-              // Add small delay to ensure map and layers are fully ready
-              setTimeout(() => {
-                
-                // Get satellite data to check for default bearing
-                const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
-                const bearingToUse = satellite?.defaultBearing ?? this.urlState.getInitialBearing();
-                
-                this.satelliteTracker.followSatelliteWithAnimation(
-                  satelliteToTrack, 
-                  zoomToUse,
-                  pitchToUse,
-                  bearingToUse
-                );
-              }, 500);
-              
-              setTimeout(() => {
-                this.urlState.setInitializing(false);
-                this.isInitializing = false;
-              }, 4000);
+              this.satelliteTracker.followSatelliteWithAnimation(
+                satelliteToTrack, 
+                zoomToUse,
+                pitchToUse,
+                bearingToUse
+              );
+            }, 100);
+            
+            // Only load remaining satellites for non-default tracking
+            // Don't load all satellites when just showing ISS by default
+            
+            setTimeout(() => {
+              this.urlState.setInitializing(false);
+              this.isInitializing = false;
+            }, 2000);
+          } else {
+            // Fallback: if specific satellite not found, load ISS instead of everything
+            const issLoaded = this.satelliteTracker.loadConfigSatelliteById('iss-zarya');
+            if (issLoaded) {
+              this.satelliteTracker.updateLayers();
+              this.satelliteTracker.startBackgroundUpdates();
+              this.satelliteTracker.followSatelliteWithAnimation('iss-zarya', 5, 60, 0);
             } else {
               this.urlState.removeInvalidSatellite();
-              setTimeout(() => {
-                this.urlState.setInitializing(false);
-                this.isInitializing = false;
-              }, 1000);
             }
+            
+            setTimeout(() => {
+              this.urlState.setInitializing(false);
+              this.isInitializing = false;
+            }, 4000);
           }
         }, 500);
       }

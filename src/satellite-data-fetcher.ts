@@ -1,5 +1,6 @@
 // Dynamic satellite data fetcher with TLE from external sources
 import { SatelliteConfig } from './types/satellite';
+import { SATELLITE_CONFIGS_WITH_STARLINK } from './config/satellites';
 
 export interface TLEData {
   id: string;
@@ -9,18 +10,6 @@ export interface TLEData {
   catalogNumber: string;
 }
 
-export interface SatelliteOverride {
-  id?: string; // Optional override for satellite ID
-  name?: string;
-  shortname?: string;
-  type?: 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather';
-  dimensions?: {
-    length: number;
-    width: number;
-    height: number;
-  };
-  image?: string;
-}
 
 export class SatelliteDataFetcher {
   private cache: Map<string, TLEData[]> = new Map();
@@ -28,121 +17,8 @@ export class SatelliteDataFetcher {
   private readonly CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
   private readonly STORAGE_PREFIX = 'satellite_cache_';
   
-  // Local overrides for satellite properties
-  private overrides: Map<string, SatelliteOverride> = new Map();
-  
   constructor() {
-    this.setupDefaultOverrides();
     this.loadCacheFromStorage();
-  }
-  
-  private setupDefaultOverrides() {
-    // ISS override with detailed info
-    this.overrides.set('ISS (ZARYA)', {
-      id: 'iss-zarya', // Force specific ID to match config and app expectations
-      name: 'International Space Station',
-      shortname: 'ISS',
-      type: 'scientific',
-      dimensions: { length: 108.5, width: 72.8, height: 20.0 },
-      image: 'static/images/ISS.png'
-    });
-    
-    // Hubble Space Telescope
-    this.overrides.set('HST', {
-      name: 'Hubble Space Telescope',
-      shortname: 'HUBBLE',
-      type: 'scientific',
-      dimensions: { length: 13.2, width: 4.2, height: 4.2 },
-      image: 'static/images/hubble.png'
-    });
-    
-    // Starlink satellites with standard dimensions and image
-    this.overrides.set('STARLINK', {
-      type: 'communication',
-      dimensions: { length: 2.8, width: 1.4, height: 0.32 },
-      image: 'static/images/starlink.png'
-    });
-    
-    // Sentinel satellites
-    this.overrides.set('SENTINEL-1A', {
-      name: 'Sentinel-1A',
-      type: 'earth-observation',
-      dimensions: { length: 10.0, width: 2.4, height: 3.4 },
-      image: 'static/images/esa_sentinel1.png'
-    });
-    
-    this.overrides.set('SENTINEL-1B', {
-      name: 'Sentinel-1B',
-      type: 'earth-observation',
-      dimensions: { length: 10.0, width: 2.4, height: 3.4 },
-      image: 'static/images/esa_sentinel1.png'
-    });
-    
-    this.overrides.set('SENTINEL-2A', {
-      name: 'Sentinel-2A',
-      type: 'earth-observation',
-      dimensions: { length: 3.7, width: 2.1, height: 2.4 },
-      image: 'static/images/esa_sentinel2.png'
-    });
-    
-    this.overrides.set('SENTINEL-2B', {
-      name: 'Sentinel-2B',
-      type: 'earth-observation',
-      dimensions: { length: 3.7, width: 2.1, height: 2.4 },
-      image: 'static/images/esa_sentinel2.png'
-    });
-    
-    this.overrides.set('SENTINEL-3A', {
-      name: 'Sentinel-3A',
-      type: 'earth-observation',
-      dimensions: { length: 3.9, width: 2.2, height: 2.2 },
-      image: 'static/images/esa_sentinel3.png'
-    });
-    
-    this.overrides.set('SENTINEL-3B', {
-      name: 'Sentinel-3B',
-      type: 'earth-observation',
-      dimensions: { length: 3.9, width: 2.2, height: 2.2 },
-      image: 'static/images/esa_sentinel3.png'
-    });
-    
-    this.overrides.set('SENTINEL-5P', {
-      name: 'Sentinel-5P (TROPOMI)',
-      type: 'earth-observation',
-      dimensions: { length: 3.5, width: 2.1, height: 2.1 },
-      image: 'static/images/esa_sentinel5.png'
-    });
-    
-    this.overrides.set('SENTINEL-6A', {
-      name: 'Sentinel-6A (Michael Freilich)',
-      type: 'earth-observation',
-      dimensions: { length: 3.3, width: 2.3, height: 2.8 },
-      image: 'static/images/esa_sentinel6.png'
-    });
-    
-    // Weather satellites
-    this.overrides.set('NOAA', {
-      type: 'weather',
-      dimensions: { length: 4.2, width: 2.6, height: 2.6 }
-    });
-    
-    // Navigation satellites
-    this.overrides.set('GPS', {
-      type: 'navigation',
-      dimensions: { length: 5.3, width: 3.7, height: 2.4 }
-    });
-    
-    this.overrides.set('GALILEO', {
-      type: 'navigation',
-      dimensions: { length: 5.0, width: 3.0, height: 2.4 },
-      image: 'static/images/esa_galileo.png'
-    });
-    
-    // Default dimensions for unknown satellites
-    this.overrides.set('DEFAULT', {
-      type: 'communication',
-      dimensions: { length: 2.0, width: 1.0, height: 1.0 }
-    });
   }
   
   /**
@@ -346,50 +222,81 @@ export class SatelliteDataFetcher {
    * Apply local overrides to satellite configuration
    */
   private applyOverrides(name: string, tleData: TLEData): SatelliteConfig {
-    // Try to find specific override by exact name match
-    let override = this.overrides.get(name);
+    // Try to find config by exact name match from central config
+    let configOverride = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => 
+      sat.name === name || sat.alternateName === name
+    );
     
-    // If not found, try pattern matching for satellite families
-    if (!override) {
-      if (name.includes('STARLINK')) {
-        override = this.overrides.get('STARLINK');
-      } else if (name.includes('SENTINEL')) {
-        // Try specific Sentinel matches first
-        for (const [key, value] of this.overrides.entries()) {
-          if (key.includes('SENTINEL') && name.includes(key.replace('SENTINEL-', ''))) {
-            override = value;
-            break;
-          }
-        }
-        if (!override && name.includes('SENTINEL')) {
-          // Fallback to generic earth observation
-          override = { type: 'earth-observation', dimensions: { length: 3.0, width: 2.0, height: 2.0 } };
-        }
-      } else if (name.includes('NOAA') || name.includes('METEOSAT') || name.includes('GOES')) {
-        override = this.overrides.get('NOAA');
-      } else if (name.includes('GPS') || name.includes('NAVSTAR')) {
-        override = this.overrides.get('GPS');
-      } else if (name.includes('GALILEO')) {
-        override = this.overrides.get('GALILEO');
-      } else {
-        // Use default for unknown satellites
-        override = this.overrides.get('DEFAULT');
-      }
+    // Try to find by normalized name matching (convert to slug format)
+    if (!configOverride) {
+      const normalizedTleName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      configOverride = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === normalizedTleName);
     }
     
-    // Merge TLE data with overrides
+    // Try partial matching for satellite families
+    if (!configOverride) {
+      configOverride = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => {
+        // Check if the TLE name contains any part of the config name or vice versa
+        const tleName = name.toLowerCase();
+        const configName = (sat.name || '').toLowerCase();
+        const configAltName = (sat.alternateName || '').toLowerCase();
+        
+        return (configName && tleName.includes(configName)) ||
+               (configAltName && tleName.includes(configAltName)) ||
+               (sat.id && tleName.includes(sat.id.toLowerCase()));
+      });
+    }
+    
+    // Use central config if found, otherwise use defaults
     const config: SatelliteConfig = {
-      id: override?.id || tleData.id, // Use override ID if specified
-      name: override?.name || tleData.name,
-      shortname: override?.shortname,
-      type: override?.type || 'communication',
+      id: configOverride?.id || tleData.id,
+      name: configOverride?.name || tleData.name,
+      shortname: configOverride?.shortname,
+      alternateName: configOverride?.alternateName,
+      type: configOverride?.type || this.getTypeFromName(name),
       tle1: tleData.tle1,
       tle2: tleData.tle2,
-      dimensions: override?.dimensions || { length: 2.0, width: 1.0, height: 1.0 },
-      image: override?.image
+      dimensions: configOverride?.dimensions || this.getDefaultDimensions(name),
+      image: configOverride?.image,
+      defaultBearing: configOverride?.defaultBearing,
+      scaleFactor: configOverride?.scaleFactor
     };
     
     return config;
+  }
+  
+  private getTypeFromName(name: string): 'scientific' | 'communication' | 'navigation' | 'earth-observation' | 'weather' {
+    const nameLower = name.toLowerCase();
+    
+    if (nameLower.includes('sentinel') || nameLower.includes('landsat') || nameLower.includes('terra') || nameLower.includes('aqua')) {
+      return 'earth-observation';
+    } else if (nameLower.includes('noaa') || nameLower.includes('meteosat') || nameLower.includes('goes')) {
+      return 'weather';
+    } else if (nameLower.includes('gps') || nameLower.includes('navstar') || nameLower.includes('galileo') || nameLower.includes('glonass')) {
+      return 'navigation';
+    } else if (nameLower.includes('iss') || nameLower.includes('hubble') || nameLower.includes('telescope')) {
+      return 'scientific';
+    } else {
+      return 'communication';
+    }
+  }
+  
+  private getDefaultDimensions(name: string): { length: number; width: number; height: number } {
+    const nameLower = name.toLowerCase();
+    
+    if (nameLower.includes('starlink')) {
+      return { length: 2.8, width: 1.4, height: 0.32 };
+    } else if (nameLower.includes('sentinel')) {
+      return { length: 3.0, width: 2.0, height: 2.0 };
+    } else if (nameLower.includes('gps') || nameLower.includes('navstar')) {
+      return { length: 5.3, width: 3.7, height: 2.4 };
+    } else if (nameLower.includes('galileo')) {
+      return { length: 5.0, width: 3.0, height: 2.4 };
+    } else if (nameLower.includes('noaa') || nameLower.includes('goes')) {
+      return { length: 4.2, width: 2.6, height: 2.6 };
+    } else {
+      return { length: 2.0, width: 1.0, height: 1.0 };
+    }
   }
   
   /**
@@ -430,13 +337,6 @@ export class SatelliteDataFetcher {
     }
     
     return allSatellites;
-  }
-  
-  /**
-   * Add or update a local override for a satellite
-   */
-  addOverride(satelliteName: string, override: SatelliteOverride) {
-    this.overrides.set(satelliteName, override);
   }
   
   /**
