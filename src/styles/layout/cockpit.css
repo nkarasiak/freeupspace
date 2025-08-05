@@ -62,13 +62,6 @@
   transition: all 0.4s ease-in-out;
 }
 
-/* Hidden cockpit state */
-#cockpit-panel.hidden {
-  transform: translateY(100%);
-  opacity: 0;
-  pointer-events: none;
-}
-
 /* Top Banner Layout */
 #banner-display {
   display: flex;
@@ -152,6 +145,13 @@
   opacity: 0.8;
 }
 
+/* Hidden cockpit state */
+#cockpit-panel.hidden {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Show Cockpit Button (when cockpit is hidden) */
 .show-cockpit-btn {
   position: fixed;
@@ -196,51 +196,4 @@
   font-size: 10px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-}
-
-/* Responsive Top Banner Layout */
-@media (max-width: 768px) {
-  #banner-display {
-    gap: 20px;
-  }
-  
-  .banner-item {
-    font-size: 12px;
-  }
-  
-  .banner-label {
-    font-size: 10px;
-  }
-  
-  .tracking-name {
-    max-width: 120px;
-  }
-}
-
-@media (max-width: 480px) {
-  #cockpit-panel {
-    height: 60px;
-    padding: 0 12px;
-  }
-  
-  #banner-display {
-    gap: 12px;
-  }
-  
-  .banner-separator {
-    display: none;
-  }
-  
-  .banner-item {
-    font-size: 11px;
-    gap: 4px;
-  }
-  
-  .banner-label {
-    display: none;
-  }
-  
-  .tracking-name {
-    max-width: 80px;
-  }
 }

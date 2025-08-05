@@ -1,3 +1,25 @@
+/* Base Reset and Typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #000;
+  overflow: hidden;
+  color: #ffffff;
+  font-weight: 400;
+}
+
+#map {
+  width: 100vw;
+  height: 100vh;
+}
+
 /* Modern Scrollbar */
 ::-webkit-scrollbar {
   width: 4px;

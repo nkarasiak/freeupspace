@@ -1,0 +1,52 @@
+/* Modern Dashboard Buttons */
+.cockpit-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 10px 14px;
+  margin: 2px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+.cockpit-btn:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 3px;
+  background: linear-gradient(45deg, #00d4ff, #0096ff);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.cockpit-btn:hover {
+  background: rgba(0, 150, 255, 0.15);
+  border-color: rgba(0, 150, 255, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 150, 255, 0.2);
+}
+
+.cockpit-btn:hover:before {
+  opacity: 1;
+}
+
+.cockpit-btn:active {
+  transform: translateY(0);
+  background: rgba(0, 150, 255, 0.1);
+}
+
+.cockpit-btn:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3);
+}
