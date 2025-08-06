@@ -7,10 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-- Comprehensive README.md with project overview and usage instructions
-- CHANGELOG.md for tracking project changes
-- Documentation for all major features and technical stack
+## [0.2.1] - 2025-08-06
+
+### 🐛 Bug Fixes
+- **Fixed Satellite URL Routing**: Resolved issue where `/yam-10` and other satellite URLs were incorrectly redirecting to `iss-zarya`
+- **Improved GitHub Pages SPA Handling**: Updated URL state management to properly handle redirect parameters from GitHub Pages 404 fallback
+
+### 🛠️ Technical Improvements
+- Enhanced URL routing logic to prevent default ISS redirect when processing GitHub Pages redirects
+- Better handling of Single Page Application (SPA) routing on static hosting platforms
 
 ## [0.2.0] - 2025-01-06
 

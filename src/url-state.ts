@@ -61,8 +61,8 @@ export class URLState {
       }
     }
     
-    // Default to ISS tracker if on homepage with no satellite specified
-    if (path === '/' && !urlParams.get('satellite') && !urlParams.get('name')) {
+    // Default to ISS tracker if on homepage with no satellite specified and no redirect parameter
+    if (path === '/' && !urlParams.get('satellite') && !urlParams.get('name') && !urlParams.get('redirect')) {
       const url = new URL(window.location.href);
       url.pathname = '/iss-zarya';
       url.searchParams.set('zoom', '4');
