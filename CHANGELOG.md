@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-08-06
+
+### ✨ New Features
+- **Fullscreen Mode**: Press `F` key to toggle fullscreen mode for immersive satellite tracking experience
+- **Enhanced Keyboard Controls**: Added fullscreen toggle with visual confirmation messages
+
+### 🎮 User Experience
+- **Seamless Fullscreen**: Quick keyboard access to fullscreen without UI buttons
+- **Visual Feedback**: Clear confirmation messages when entering/exiting fullscreen mode
+
 ## [0.2.1] - 2025-08-06
 
 ### 🐛 Bug Fixes

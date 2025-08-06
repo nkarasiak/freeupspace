@@ -251,6 +251,22 @@ class SatelliteTracker3D {
     }
   }
 
+  private toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        this.showMessage('🖥️ Fullscreen enabled', 'info');
+      }).catch(() => {
+        this.showMessage('⚠️ Fullscreen failed', 'error');
+      });
+    } else {
+      document.exitFullscreen().then(() => {
+        this.showMessage('🖥️ Fullscreen disabled', 'info');
+      }).catch(() => {
+        this.showMessage('⚠️ Exit fullscreen failed', 'error');
+      });
+    }
+  }
+
   private showMessage(message: string, type: 'success' | 'error' | 'warning' | 'info') {
     const messageDiv = document.createElement('div');
     messageDiv.style.cssText = `
@@ -337,6 +353,14 @@ class SatelliteTracker3D {
         if (!e.ctrlKey && !e.metaKey) {
           e.preventDefault();
           this.toggleProjection();
+        }
+      }
+      
+      // F key to toggle fullscreen
+      if (e.key === 'f' || e.key === 'F') {
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.toggleFullscreen();
         }
       }
       
