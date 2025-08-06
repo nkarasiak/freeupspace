@@ -646,7 +646,7 @@ class SatelliteTracker3D {
       });
 
       // Update URL state to reflect the tracked satellite
-      this.urlState.updateSatellite(satelliteId);
+      this.urlState.navigateToSatellite(satelliteId);
     } else {
       console.warn(`Could not find satellite data for SEO update: ${satelliteId}`);
     }
