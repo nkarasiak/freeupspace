@@ -1,0 +1,108 @@
+# Changelog
+
+All notable changes to the From Up There satellite tracking project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+- Comprehensive README.md with project overview and usage instructions
+- CHANGELOG.md for tracking project changes
+- Documentation for all major features and technical stack
+
+## [0.2.0] - 2025-01-06
+
+### 🚀 Major Features Added
+- **Command Palette Search System**: Press `/` to search across 12,000+ satellites
+- **On-Demand Satellite Loading**: Satellites loaded only when needed for optimal performance
+- **Search Database**: Full Celestrak database cached for instant search results
+- **Virtual Scrolling**: Handle large search results efficiently
+
+### ✨ Enhanced Satellite Tracking
+- **Smart Camera System**: Automatic bearing, zoom, and pitch adjustment per satellite
+- **Satellite-Specific View Settings**: Configure default camera settings per satellite
+- **Improved Search Matching**: Search by name, ID, type, and alternate names
+- **Real-Time Position Updates**: More accurate orbital position calculations
+
+### 🎨 User Experience Improvements
+- **Modern Command Palette Interface**: Clean, keyboard-navigable satellite search
+- **Performance Optimizations**: Faster rendering with Level-of-Detail (LOD) system
+- **Enhanced Visual Feedback**: Better loading states and search result display
+- **Responsive Design**: Improved mobile and desktop experience
+
+### 🛠️ Technical Improvements
+- **Modular Architecture**: Better separation of concerns with TypeScript interfaces
+- **Search Database Management**: Efficient caching and loading of satellite data
+- **Memory Optimization**: Reduced memory usage with smart data management
+- **Error Handling**: Improved error handling for network and data issues
+
+### 🐛 Bug Fixes
+- Fixed command palette showing only tracked satellite instead of full database
+- Resolved satellite image rendering and scaling issues
+- Fixed orbital calculations for high-altitude satellites
+- Improved TLE data parsing and validation
+
+## [0.1.0] - 2025-01-05
+
+### 🎉 Initial Release Features
+
+#### Core Functionality
+- **Real-Time Satellite Tracking**: Live orbital positions using TLE data from Celestrak
+- **3D Visualization**: WebGL-powered rendering with Deck.gl
+- **Interactive Controls**: Mouse-driven Earth rotation and zoom
+- **Satellite Selection**: Basic search and tracking functionality
+
+#### Supported Satellites
+- **International Space Station (ISS)**: Featured with custom icon and TLE data
+- **Earth Observation**: Landsat, MODIS, Sentinel constellation support
+- **Navigation Systems**: GPS, Galileo, GLONASS satellites
+- **Communication**: Starlink and commercial satellite tracking
+- **Scientific**: Space telescopes and research satellites
+
+#### Technical Foundation
+- **TypeScript**: Full type safety and modern development practices
+- **Vite Build System**: Fast development and optimized production builds
+- **Satellite.js Integration**: Accurate orbital mechanics calculations
+- **MapLibre GL**: Interactive base mapping system
+- **Custom Satellite Icons**: Visual differentiation for major satellites
+
+#### User Interface
+- **Minimalist Cockpit**: Essential tracking information display
+- **Real-Time Metrics**: Altitude, speed, and position updates
+- **Responsive Design**: Desktop and mobile compatibility
+- **Keyboard Shortcuts**: Power user accessibility
+
+### Initial Data Sources
+- Celestrak TLE data for orbital elements
+- NORAD General Perturbations database
+- Custom satellite imagery and metadata
+- Real-time orbital propagation calculations
+
+---
+
+## Development Notes
+
+### Version Numbering
+- **Major** (X.0.0): Breaking changes, major feature releases
+- **Minor** (0.X.0): New features, enhancements, significant improvements
+- **Patch** (0.0.X): Bug fixes, minor improvements, documentation updates
+
+### Recent Development Focus
+The project has focused on performance optimization and user experience improvements, particularly around search functionality and satellite data management. The addition of the command palette and on-demand loading represents a major step forward in handling large datasets efficiently.
+
+### Upcoming Roadmap
+- Enhanced orbit visualization
+- Real-time satellite pass predictions
+- Advanced filtering and categorization
+- Satellite constellation grouping
+- Historical orbital data analysis
+- Mobile app considerations
+
+### Contributing
+See README.md for contribution guidelines and development setup instructions.
+
+---
+
+**Changelog Format**: This changelog follows semantic versioning and focuses on user-facing changes. Technical implementation details are documented in commit messages and code comments.
