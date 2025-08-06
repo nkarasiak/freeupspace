@@ -2193,6 +2193,10 @@ export class DeckSatelliteTracker {
     return this.satellites;
   }
 
+  getSearchDatabase(): Map<string, SatelliteData> {
+    return this.searchSatelliteDatabase;
+  }
+
   getSatelliteConfigs() {
     return SATELLITE_CONFIGS_WITH_STARLINK;
   }

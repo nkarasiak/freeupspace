@@ -577,11 +577,21 @@ class SatelliteTracker3D {
     
     // Set up command palette callbacks
     this.commandPalette.setCallbacks({
-      onTrackSatellite: (satelliteId: string) => {
+      onTrackSatellite: async (satelliteId: string) => {
+        // Load satellite from search database if not already active
+        if (!this.satelliteTracker.getSatellites().has(satelliteId)) {
+          this.satelliteTracker.loadSatelliteFromSearchDatabase(satelliteId);
+        }
         this.satelliteTracker.followSatellite(satelliteId);
       },
       getSatellites: () => {
         return this.satelliteTracker.getSatellites();
+      },
+      getSearchDatabase: () => {
+        return this.satelliteTracker.getSearchDatabase();
+      },
+      loadSearchDatabase: async () => {
+        await this.satelliteTracker.loadAllSatellitesForSearch();
       }
     });
   }

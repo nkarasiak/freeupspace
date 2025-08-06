@@ -24,6 +24,8 @@ export class CommandPalette {
   // Callbacks
   private onTrackSatellite?: (satelliteId: string) => void;
   private getSatellites?: () => Map<string, any>;
+  private getSearchDatabase?: () => Map<string, any>;
+  private loadSearchDatabase?: () => Promise<void>;
 
   constructor() {
     this.palette = document.getElementById('command-palette')!;
@@ -42,9 +44,13 @@ export class CommandPalette {
   setCallbacks(callbacks: {
     onTrackSatellite?: (satelliteId: string) => void;
     getSatellites?: () => Map<string, any>;
+    getSearchDatabase?: () => Map<string, any>;
+    loadSearchDatabase?: () => Promise<void>;
   }) {
     this.onTrackSatellite = callbacks.onTrackSatellite;
     this.getSatellites = callbacks.getSatellites;
+    this.getSearchDatabase = callbacks.getSearchDatabase;
+    this.loadSearchDatabase = callbacks.loadSearchDatabase;
     
     this.initializeSatellites();
   }
@@ -54,15 +60,16 @@ export class CommandPalette {
   }
 
   public refreshSatelliteList() {
-    if (!this.getSatellites) {
+    // Use search database if available, otherwise fall back to active satellites
+    const satelliteSource = this.getSearchDatabase?.() || this.getSatellites?.();
+    if (!satelliteSource) {
       return;
     }
     
-    const satellites = this.getSatellites();
     this.satelliteResults = [];
     
     // Convert satellites map to array
-    satellites.forEach((satellite, id) => {
+    satelliteSource.forEach((satellite, id) => {
       this.satelliteResults.push({
         id,
         name: satellite.shortname || satellite.alternateName || satellite.name || id,
@@ -256,10 +263,19 @@ export class CommandPalette {
     this.close();
   }
 
-  public open() {
+  public async open() {
     this.isOpen = true;
     this.palette.classList.add('active');
     this.input.value = '';
+    
+    // Load search database if available
+    if (this.loadSearchDatabase) {
+      try {
+        await this.loadSearchDatabase();
+      } catch (error) {
+        console.warn('Failed to load search database in command palette:', error);
+      }
+    }
     
     // Refresh satellite list to get latest data
     this.refreshSatelliteList();
