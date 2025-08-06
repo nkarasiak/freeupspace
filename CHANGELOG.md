@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2025-01-06
+
+### 🧹 Code Cleanup
+- **Removed Unreferenced UI Elements**: Cleaned up 151 lines of dead code referencing non-existent HTML elements
+  - **Pitch Slider**: Removed pitch slider and related event listeners
+  - **Unused Buttons**: Removed references to toggle-basemap, track-iss, show-starlink, pause-updates, satellite-tracked-only
+  - **Filter System**: Removed filter functionality for non-existent filter checkboxes and count elements
+  - **Dead Methods**: Removed updateSatelliteTrackedOnlyButton and related unused functionality
+
+### ⚡ Performance Improvements
+- **Bundle Size Reduction**: Main bundle reduced from 94.43 kB to 91.06 kB (-3.37 kB)
+- **Cleaner Codebase**: Removed all references to non-existent HTML elements
+- **Better Maintainability**: Simplified code structure with only functional elements
+
+### 🛠️ Technical Improvements
+- Cleaned up `main.ts`, `deck-satellite-tracker.ts`, and `cockpit.component.ts`
+- Improved type safety by removing references to non-existent DOM elements
+- Streamlined event listener setup and UI update logic
+
 ## [0.2.3] - 2025-01-06
 
 ### ✨ New Features
