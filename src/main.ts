@@ -5,6 +5,7 @@ import { URLState } from './url-state';
 import { CommandPalette } from './command-palette';
 import { SearchComponent } from './components/search.component';
 import { CockpitComponent } from './components/cockpit.component';
+import { SEOManager } from './seo-manager';
 
 class SatelliteTracker3D {
   private map!: MapLibreMap;
@@ -583,6 +584,9 @@ class SatelliteTracker3D {
           this.satelliteTracker.loadSatelliteFromSearchDatabase(satelliteId);
         }
         this.satelliteTracker.followSatellite(satelliteId);
+        
+        // Update SEO meta tags for the tracked satellite
+        this.updateSEOForSatellite(satelliteId);
       },
       getSatellites: () => {
         return this.satelliteTracker.getSatellites();
@@ -603,6 +607,9 @@ class SatelliteTracker3D {
     this.searchComponent.setCallbacks({
       onSatelliteSelect: (satelliteId: string) => {
         this.satelliteTracker.followSatellite(satelliteId);
+        
+        // Update SEO meta tags for the tracked satellite
+        this.updateSEOForSatellite(satelliteId);
       },
       getSatellites: () => {
         return this.satelliteTracker.getSatellites();
@@ -616,6 +623,33 @@ class SatelliteTracker3D {
     this._cockpitComponent.setCommandPalette(this.commandPalette);
     // Reference it to satisfy TypeScript unused variable check
     void this._cockpitComponent;
+  }
+
+  /**
+   * Update SEO meta tags when tracking a specific satellite
+   */
+  private updateSEOForSatellite(satelliteId: string) {
+    // Get satellite data from active satellites or search database
+    let satellite = this.satelliteTracker.getSatellites().get(satelliteId);
+    if (!satellite) {
+      satellite = this.satelliteTracker.getSearchDatabase().get(satelliteId);
+    }
+
+    if (satellite) {
+      SEOManager.updateMetaForSatellite({
+        id: satelliteId,
+        name: satellite.name,
+        alternateName: satellite.alternateName,
+        type: satellite.type,
+        altitude: satellite.altitude,
+        image: satellite.image
+      });
+
+      // Update URL state to reflect the tracked satellite
+      this.urlState.updateSatellite(satelliteId);
+    } else {
+      console.warn(`Could not find satellite data for SEO update: ${satelliteId}`);
+    }
   }
 
   private applyPitchOverride() {

@@ -1,0 +1,31 @@
+User-agent: *
+Allow: /
+
+# Disallow any admin or development paths if they exist
+Disallow: /admin/
+Disallow: /.git/
+Disallow: /node_modules/
+Disallow: /src/
+Disallow: /dist/
+Disallow: /_*
+
+# Allow all static assets
+Allow: /static/
+Allow: *.css
+Allow: *.js
+Allow: *.png
+Allow: *.jpg
+Allow: *.jpeg
+Allow: *.gif
+Allow: *.svg
+Allow: *.webp
+Allow: *.ico
+Allow: *.woff
+Allow: *.woff2
+Allow: *.ttf
+
+# Sitemap location
+Sitemap: https://fromupthere.com/sitemap.xml
+
+# Crawl-delay for respectful crawling
+Crawl-delay: 1
