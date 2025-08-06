@@ -1,7 +1,8 @@
 import { ScatterplotLayer, IconLayer, ArcLayer } from '@deck.gl/layers';
 import { Map as MapLibreMap } from 'maplibre-gl';
 import * as satellite from 'satellite.js';
-import { SatelliteData, SatellitePointData } from '../deck-satellite-tracker';
+import { SatelliteData } from '../types/satellite';
+import { SatellitePointData } from '../deck-satellite-tracker';
 import { LODManager, ViewportInfo, SatelliteForLOD } from '../lod-manager';
 import { PerformanceManager } from '../performance-manager';
 import { SmoothTracker } from '../smooth-tracker';

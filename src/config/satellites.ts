@@ -66,11 +66,13 @@ export const SATELLITE_CONFIGS: SatelliteConfig[] = [
   },
   {
     id: 'yam-10',
+    name: 'YAM-10',
     alternateName: 'EarthDaily YAM-10',
     image: 'static/images/earthdaily_yam10.webp',
-    defaultBearing: 0,
+    defaultZoom: 3,
+    defaultPitch: 60,
     scaleFactor: 1.5
-  }
+	}
 ];
 
 // Starlink constellation generator for realistic mega-constellation

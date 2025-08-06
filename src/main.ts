@@ -417,6 +417,10 @@ class SatelliteTracker3D {
       const satelliteToTrack = this.urlState.getInitialSatellite() || 'iss-zarya';
       const isDefaultISS = !this.urlState.getInitialSatellite(); // True if we're defaulting to ISS
       
+      // Enable external satellite loading for search functionality
+      this.satelliteTracker.enableExternalSatelliteLoading();
+      // Keep showing only tracked satellite for performance
+      this.satelliteTracker.setShowTrackedSatelliteOnly(true);
       
       // Check if satellite is in config and has TLE data for instant loading
       const configSatellite = this.satelliteTracker.getSatelliteConfigs().find(sat => sat.id === satelliteToTrack);
@@ -427,17 +431,11 @@ class SatelliteTracker3D {
         const satelliteLoaded = this.satelliteTracker.loadConfigSatelliteById(satelliteToTrack);
         
         if (satelliteLoaded) {
-          // Clear any satellites that might have been loaded and keep only ISS
-          this.satelliteTracker.clearAllSatellitesExceptISS();
-          
-          // For homepage (default ISS), disable external satellite loading to keep it fast
-          if (isDefaultISS) {
-            this.satelliteTracker.disableExternalSatelliteLoading();
-          }
-          
           // Start layers and background updates immediately
           this.satelliteTracker.updateLayers();
           this.satelliteTracker.startBackgroundUpdates();
+          
+          // Satellites will be loaded on-demand when searching
           
           // Start satellite tracking immediately
           setTimeout(() => {
@@ -445,24 +443,31 @@ class SatelliteTracker3D {
             const pitchToUse = isDefaultISS ? 60 : this.urlState.getInitialPitch();
             
             
-            // Get satellite data to check for default bearing
+            // Get satellite data to check for default bearing and other properties
             const satellite = this.satelliteTracker.getSatellites().get(satelliteToTrack);
             const bearingToUse = satellite?.defaultBearing ?? this.urlState.getInitialBearing();
             
-            this.satelliteTracker.followSatelliteWithAnimation(
-              satelliteToTrack, 
-              zoomToUse,
-              pitchToUse,
-              bearingToUse
-            );
+            // Use satellite-specific zoom and pitch if available
+            const finalZoomToUse = satellite?.defaultZoom ?? zoomToUse;
+            const finalPitchToUse = satellite?.defaultPitch ?? pitchToUse;
             
-            // Only load additional satellites if explicitly requested, not on homepage
-            if (!isDefaultISS) {
-              // Re-enable external satellite loading for specific satellite requests
-              this.satelliteTracker.enableExternalSatelliteLoading();
-              setTimeout(async () => {
-                await this.satelliteTracker.initialize();
-              }, 1000);
+            console.log(`🎯 Tracking satellite "${satelliteToTrack}" with:`, {
+              zoom: finalZoomToUse,
+              pitch: finalPitchToUse,
+              bearing: bearingToUse,
+              altitude: satellite?.altitude,
+              position: satellite?.position ? `${satellite.position.lat.toFixed(2)}, ${satellite.position.lng.toFixed(2)}` : 'undefined'
+            });
+            
+            if (satellite && satellite.position) {
+              this.satelliteTracker.followSatelliteWithAnimation(
+                satelliteToTrack, 
+                finalZoomToUse,
+                finalPitchToUse,
+                bearingToUse
+              );
+            } else {
+              console.warn(`⚠️ Satellite "${satelliteToTrack}" not found or has no position`);
             }
             
           }, 100); // Very short delay for satellite tracking
@@ -486,6 +491,8 @@ class SatelliteTracker3D {
             this.satelliteTracker.updateLayers();
             this.satelliteTracker.startBackgroundUpdates();
             
+            // Satellites will be loaded on-demand when searching
+            
             const zoomToUse = this.initialZoom;
             const pitchToUse = this.urlState.getInitialPitch();
             
@@ -502,20 +509,19 @@ class SatelliteTracker3D {
               );
             }, 100);
             
-            // Only load remaining satellites for non-default tracking
-            // Don't load all satellites when just showing ISS by default
-            
             setTimeout(() => {
               this.urlState.setInitializing(false);
               this.isInitializing = false;
             }, 2000);
           } else {
-            // Fallback: if specific satellite not found, load ISS instead of everything
+            // Fallback: if specific satellite not found, load ISS and all satellites
             const issLoaded = this.satelliteTracker.loadConfigSatelliteById('iss-zarya');
             if (issLoaded) {
               this.satelliteTracker.updateLayers();
               this.satelliteTracker.startBackgroundUpdates();
               this.satelliteTracker.followSatelliteWithAnimation('iss-zarya', 5, 60, 0);
+              
+              // Satellites will be loaded on-demand when searching
             } else {
               this.urlState.removeInvalidSatellite();
             }

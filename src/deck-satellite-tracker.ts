@@ -28,6 +28,8 @@ export interface SatelliteData {
   };
   image?: string; // Optional image URL for satellites with custom icons
   defaultBearing?: number; // Optional default camera bearing when tracking this satellite (0-360 degrees)
+  defaultZoom?: number; // Optional default zoom level when tracking this satellite
+  defaultPitch?: number; // Optional default pitch angle when tracking this satellite
   scaleFactor?: number; // Optional scale factor for satellite size (default: 1.0)
 }
 
@@ -53,7 +55,8 @@ export interface OrbitCircleData {
 export class DeckSatelliteTracker {
   private map: MapLibreMap;
   private deck!: Deck;
-  private satellites: Map<string, SatelliteData> = new Map();
+  private satellites: Map<string, SatelliteData> = new Map(); // Active satellites for display
+  private searchSatelliteDatabase: Map<string, SatelliteData> = new Map(); // All satellites for search
   private animationId: number | null = null;
   private followingSatellite: string | null = null;
   private showOrbits = false;
@@ -315,7 +318,7 @@ export class DeckSatelliteTracker {
     this.allowExternalSatelliteLoading = true;
   }
 
-  // Load any satellite from config immediately for instant tracking
+  // Load any satellite from config immediately for instant tracking (only for satellites with TLE data in config)
   loadConfigSatelliteById(satelliteId: string) {
     const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === satelliteId);
     
@@ -335,6 +338,8 @@ export class DeckSatelliteTracker {
             dimensions: satelliteConfig.dimensions || { length: 2.0, width: 1.0, height: 1.0 },
             image: satelliteConfig.image,
             defaultBearing: satelliteConfig.defaultBearing,
+            defaultZoom: satelliteConfig.defaultZoom,
+            defaultPitch: satelliteConfig.defaultPitch,
             scaleFactor: satelliteConfig.scaleFactor,
             position: new LngLat(position.longitude, position.latitude),
             altitude: position.altitude,
@@ -363,72 +368,304 @@ export class DeckSatelliteTracker {
 
   // Load a specific satellite from external data without loading all satellites
   async loadSpecificSatellite(satelliteId: string): Promise<boolean> {
+    console.log(`🔍 Loading satellite "${satelliteId}" from Celestrak data...`);
+    
     try {
-      // First check if it's in config
-      if (this.loadConfigSatelliteById(satelliteId)) {
-        return true;
+      // Download all TLE data from Celestrak
+      const allSatellites = await this.satelliteDataFetcher.fetchSatellites(['all']);
+      console.log(`🔍 Downloaded ${allSatellites.length} satellites from Celestrak`);
+      
+      // IMPORTANT: Populate the search database with all satellites while we have them
+      if (!this.searchSatellitesLoaded) {
+        console.log(`🔍 Populating search database with ${allSatellites.length} satellites...`);
+        await this.populateSearchDatabaseFromSatelliteList(allSatellites);
+        this.searchSatellitesLoaded = true;
+        console.log(`🔍 Search database now contains ${this.searchSatelliteDatabase.size} satellites`);
       }
       
-      if (!this.allowExternalSatelliteLoading) {
+      // Find the specific satellite by ID or name
+      const targetSatellite = allSatellites.find(sat => {
+        const nameMatch = sat.name?.toLowerCase().replace(/[^a-z0-9]/g, '-') === satelliteId.toLowerCase();
+        const idMatch = sat.id?.toLowerCase() === satelliteId.toLowerCase();
+        const exactNameMatch = sat.name?.toLowerCase() === satelliteId.toLowerCase();
+        return nameMatch || idMatch || exactNameMatch;
+      });
+      
+      if (!targetSatellite || !targetSatellite.tle1 || !targetSatellite.tle2) {
+        console.log(`🔍 Satellite "${satelliteId}" not found in Celestrak data`);
         return false;
       }
       
-      // Load from external source and find the specific satellite
-      const allSatellites = await this.satelliteDataFetcher.fetchSatellites(['all']);
-      const targetSatellite = allSatellites.find(sat => 
+      console.log(`🔍 Found satellite: ${targetSatellite.name} (${targetSatellite.id})`);
+      
+      // Calculate position using TLE data
+      const position = this.calculateSatellitePosition(targetSatellite.tle1, targetSatellite.tle2, targetSatellite.id);
+      console.log(`🔍 Position calculated:`, position);
+      
+      if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+        console.log(`🔍 Invalid position for satellite "${satelliteId}"`);
+        return false;
+      }
+      
+      // Look for config metadata to merge
+      const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => 
         sat.id === satelliteId || 
-        sat.name?.toLowerCase().replace(/[^a-z0-9]/g, '-') === satelliteId
+        sat.name?.toLowerCase() === targetSatellite.name?.toLowerCase()
       );
       
-      if (targetSatellite && targetSatellite.tle1 && targetSatellite.tle2) {
-        const position = this.calculateSatellitePosition(targetSatellite.tle1, targetSatellite.tle2, targetSatellite.id);
+      console.log(`🔍 Config metadata found:`, satelliteConfig ? 'YES' : 'NO');
+      
+      // Create satellite data merging TLE with config
+      const satelliteData: SatelliteData = {
+        id: satelliteId, // Use the requested ID
+        name: satelliteConfig?.name || targetSatellite.name || satelliteId,
+        shortname: satelliteConfig?.shortname || targetSatellite.shortname,
+        alternateName: satelliteConfig?.alternateName || targetSatellite.alternateName,
+        type: satelliteConfig?.type || targetSatellite.type || 'communication',
+        tle1: targetSatellite.tle1,
+        tle2: targetSatellite.tle2,
+        dimensions: satelliteConfig?.dimensions || {
+          length: 2.0,
+          width: 1.0,
+          height: 1.0
+        },
+        image: satelliteConfig?.image,
+        defaultBearing: satelliteConfig?.defaultBearing,
+        defaultZoom: satelliteConfig?.defaultZoom,
+        defaultPitch: satelliteConfig?.defaultPitch,
+        scaleFactor: satelliteConfig?.scaleFactor || 1.0,
+        position: new LngLat(position.longitude, position.latitude),
+        altitude: position.altitude,
+        velocity: position.velocity
+      };
+      
+      // Add only this satellite to the map
+      this.satellites.set(satelliteId, satelliteData);
+      console.log(`🔍 Satellite "${satelliteId}" loaded successfully`);
+      
+      // Load image if available
+      if (satelliteData.image) {
+        this.loadSatelliteIcon(satelliteId, satelliteData.image);
+        console.log(`🔍 Loading image:`, satelliteData.image);
+      } else {
+        this.createDotIcon(satelliteId);
+      }
+      
+      this.onSatellitesLoadedCallback?.();
+      return true;
+      
+    } catch (error) {
+      console.error(`Failed to load satellite "${satelliteId}":`, error);
+      return false;
+    }
+  }
+
+  // Load all satellites for search functionality (cached)
+  private searchSatellitesLoaded = false;
+
+  // Populate search database from a list of satellite configs
+  private async populateSearchDatabaseFromSatelliteList(allSatellites: any[]): Promise<void> {
+    let loadedCount = 0;
+    
+    for (const sat of allSatellites) {
+      if (!sat.tle1 || !sat.tle2) continue;
+      
+      // Skip if satellite already exists in search database
+      if (this.searchSatelliteDatabase.has(sat.id)) continue;
+      
+      try {
+        // Calculate position using TLE data
+        const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
         
-        if (!isNaN(position.longitude) && !isNaN(position.latitude) && !isNaN(position.altitude)) {
-          // Apply config defaults if available
-          const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(sat => sat.id === satelliteId);
+        if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+          continue;
+        }
+        
+        // Look for config metadata to merge
+        const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(config => 
+          config.id === sat.id || 
+          config.name?.toLowerCase() === sat.name?.toLowerCase()
+        );
+        
+        // Create satellite data merging TLE with config
+        const satelliteData: SatelliteData = {
+          id: sat.id,
+          name: satelliteConfig?.name || sat.name || sat.id,
+          shortname: satelliteConfig?.shortname || sat.shortname,
+          alternateName: satelliteConfig?.alternateName || sat.alternateName,
+          type: satelliteConfig?.type || sat.type || 'communication',
+          tle1: sat.tle1,
+          tle2: sat.tle2,
+          dimensions: satelliteConfig?.dimensions || sat.dimensions || {
+            length: 2.0,
+            width: 1.0,
+            height: 1.0
+          },
+          image: satelliteConfig?.image,
+          defaultBearing: satelliteConfig?.defaultBearing,
+          defaultZoom: satelliteConfig?.defaultZoom,
+          defaultPitch: satelliteConfig?.defaultPitch,
+          scaleFactor: satelliteConfig?.scaleFactor || 1.0,
+          position: new LngLat(position.longitude, position.latitude),
+          altitude: position.altitude,
+          velocity: position.velocity
+        };
+        
+        // Add to search database (not active satellites)
+        this.searchSatelliteDatabase.set(sat.id, satelliteData);
+        
+        loadedCount++;
+      } catch (error) {
+        // Skip satellites with invalid data
+        continue;
+      }
+    }
+    
+    console.log(`🌍 Successfully populated search database with ${loadedCount} satellites`);
+  }
+  
+  async loadAllSatellitesForSearch(): Promise<void> {
+    // Only load once for search functionality
+    if (this.searchSatellitesLoaded) {
+      return;
+    }
+    
+    await this.loadAllSatellitesFromCelestrak();
+    this.searchSatellitesLoaded = true;
+  }
+
+  // Load a specific satellite from search database into active satellites for tracking
+  loadSatelliteFromSearchDatabase(satelliteId: string): boolean {
+    const searchSatellite = this.searchSatelliteDatabase.get(satelliteId);
+    if (!searchSatellite) {
+      console.warn(`Satellite ${satelliteId} not found in search database`);
+      return false;
+    }
+    
+    // Recalculate current position (search database may have old positions)
+    try {
+      const position = this.calculateSatellitePosition(searchSatellite.tle1, searchSatellite.tle2, satelliteId);
+      
+      // Create updated satellite data with current position
+      const updatedSatellite: SatelliteData = {
+        ...searchSatellite,
+        position: new LngLat(position.longitude, position.latitude),
+        altitude: position.altitude,
+        velocity: position.velocity
+      };
+      
+      // Add to active satellites
+      this.satellites.set(satelliteId, updatedSatellite);
+      
+      // Load image if available, otherwise create dot icon
+      if (updatedSatellite.image) {
+        this.loadSatelliteIcon(satelliteId, updatedSatellite.image);
+      } else {
+        this.createDotIcon(satelliteId);
+      }
+      
+      console.log(`✅ Loaded satellite ${satelliteId} from search database`);
+      return true;
+      
+    } catch (error) {
+      console.error(`Failed to load satellite ${satelliteId} from search database:`, error);
+      return false;
+    }
+  }
+
+  // Load all satellites from Celestrak into search database
+  async loadAllSatellitesFromCelestrak(): Promise<void> {
+    if (!this.allowExternalSatelliteLoading) {
+      console.log('🚫 External satellite loading is disabled');
+      return;
+    }
+    
+    console.log('🌍 Loading all satellites from Celestrak into search database...');
+    
+    try {
+      // Download all TLE data from Celestrak
+      const allSatellites = await this.satelliteDataFetcher.fetchSatellites(['all']);
+      console.log(`🌍 Downloaded ${allSatellites.length} satellites from Celestrak`);
+      
+      let loadedCount = 0;
+      
+      for (const sat of allSatellites) {
+        if (!sat.tle1 || !sat.tle2) continue;
+        
+        // Skip if satellite already exists in search database
+        if (this.searchSatelliteDatabase.has(sat.id)) continue;
+        
+        try {
+          // Calculate position using TLE data
+          const position = this.calculateSatellitePosition(sat.tle1, sat.tle2, sat.id);
           
-          const satelliteData = {
-            id: targetSatellite.id,
-            name: targetSatellite.name || targetSatellite.id,
-            shortname: satelliteConfig?.alternateName || targetSatellite.shortname || targetSatellite.name,
-            alternateName: satelliteConfig?.alternateName,
-            type: 'scientific' as const,
+          if (isNaN(position.longitude) || isNaN(position.latitude) || isNaN(position.altitude)) {
+            continue;
+          }
+          
+          // Look for config metadata to merge
+          const satelliteConfig = SATELLITE_CONFIGS_WITH_STARLINK.find(config => 
+            config.id === sat.id || 
+            config.name?.toLowerCase() === sat.name?.toLowerCase()
+          );
+          
+          // Create satellite data merging TLE with config
+          const satelliteData: SatelliteData = {
+            id: sat.id,
+            name: satelliteConfig?.name || sat.name || sat.id,
+            shortname: satelliteConfig?.shortname || sat.shortname,
+            alternateName: satelliteConfig?.alternateName || sat.alternateName,
+            type: satelliteConfig?.type || sat.type || 'communication',
+            tle1: sat.tle1,
+            tle2: sat.tle2,
+            dimensions: satelliteConfig?.dimensions || sat.dimensions || {
+              length: 2.0,
+              width: 1.0,
+              height: 1.0
+            },
+            image: satelliteConfig?.image,
+            defaultBearing: satelliteConfig?.defaultBearing,
+            defaultZoom: satelliteConfig?.defaultZoom,
+            defaultPitch: satelliteConfig?.defaultPitch,
+            scaleFactor: satelliteConfig?.scaleFactor || 1.0,
             position: new LngLat(position.longitude, position.latitude),
             altitude: position.altitude,
-            velocity: position.velocity,
-            tle1: targetSatellite.tle1,
-            tle2: targetSatellite.tle2,
-            dimensions: {
-              length: 10,
-              width: 5,
-              height: 5
-            },
-            defaultBearing: satelliteConfig?.defaultBearing,
-            scaleFactor: satelliteConfig?.scaleFactor || 1,
-            image: satelliteConfig?.image
+            velocity: position.velocity
           };
           
-          this.satellites.set(targetSatellite.id, satelliteData);
+          // Add to search database (not active satellites)
+          this.searchSatelliteDatabase.set(sat.id, satelliteData);
           
-          // Create dot icon for now, image will be loaded lazily when needed
-          this.createDotIcon(targetSatellite.id);
-          
-          this.onSatellitesLoadedCallback?.();
-          return true;
+          loadedCount++;
+        } catch (error) {
+          // Skip satellites with invalid data
+          continue;
         }
       }
       
-      return false;
+      console.log(`🌍 Successfully loaded ${loadedCount} satellites into search database`);
+      
+      // Debug: show a few examples of what's in the database
+      const sampleSatellites = Array.from(this.searchSatelliteDatabase.values()).slice(0, 5);
+      console.log('🔍 Sample satellites in database:', sampleSatellites.map(sat => ({
+        id: sat.id,
+        name: sat.name,
+        type: sat.type
+      })));
+      
     } catch (error) {
-      console.warn('Failed to load specific satellite:', satelliteId, error);
-      return false;
+      console.error('Failed to load all satellites from Celestrak:', error);
+      throw error;
     }
   }
 
   async initialize() {
     // Load config satellites first (synchronously) for immediate tracking
     this.loadConfigSatellites();
-    // Note: loadSampleSatellites() removed - this website focuses on specific satellites, not loading thousands
+    
+    // External satellites will be loaded on-demand for search functionality
+    // This keeps the app fast when viewing specific satellites
+    
     this.loadSatelliteIcons();
     this.updateLayers();
     // Start background satellite position updates (not camera tracking)
@@ -493,7 +730,8 @@ export class DeckSatelliteTracker {
     this.onSatellitesLoadedCallback?.();
   }
 
-  // loadSampleSatellites() method removed - this website focuses on specific satellites, not bulk loading thousands
+  // External satellites are loaded on-demand for search functionality
+  // This keeps the app fast when viewing specific satellites
 
   private loadSatelliteIcons() {
     // Don't load all images immediately - use lazy loading instead
@@ -864,15 +1102,15 @@ export class DeckSatelliteTracker {
       north: bounds.getNorth() + margin/2
     };
     
-    // Show only the tracked satellite when following one
+    // Filter satellites based on visibility settings
     const satellitesForLOD: SatelliteForLOD[] = Array.from(this.satellites.values())
       .filter(sat => {
-        // If tracking a satellite, show ONLY that satellite
-        if (this.followingSatellite) {
+        // If showing only tracked satellite and we're tracking one, show only that
+        if (this.followingSatellite && this.showTrackedSatelliteOnly) {
           return sat.id === this.followingSatellite;
         }
         
-        // If not tracking, apply normal filters
+        // Apply type filters
         if (!this.enabledSatelliteTypes.has(sat.type)) return false;
         
         // Aggressive viewport culling for performance
@@ -1045,9 +1283,9 @@ export class DeckSatelliteTracker {
       
       const satellite = this.satellites.get(satelliteId);
       if (satellite && this.enabledSatelliteTypes.has(satellite.type)) { // Apply type filter
-        // If tracking a satellite, show ONLY that satellite icon
-        if (this.followingSatellite && satelliteId !== this.followingSatellite) {
-          return; // Skip all other satellites when tracking
+        // If showing only tracked satellite and we're tracking one, show only that
+        if (this.followingSatellite && this.showTrackedSatelliteOnly && satelliteId !== this.followingSatellite) {
+          return; // Skip all other satellites when tracking and showing only tracked
         }
         
         // Enhanced LOD for performance with high satellite counts
@@ -1412,11 +1650,11 @@ export class DeckSatelliteTracker {
         if (satelliteAltitudeKm > 700) {
           adjustedZoom = 3.5; // Fixed zoom for ultra-high satellites
         } else if (satelliteAltitudeKm > 600) {
-          adjustedZoom = 4.0; // Fixed zoom for very high satellites like YAM-10
+          adjustedZoom = 3.0; // Fixed zoom for very high satellites like YAM-10
         } else if (satelliteAltitudeKm > 500) {
-          adjustedZoom = 4.5; // Fixed zoom for high satellites
+          adjustedZoom = 3.5; // Fixed zoom for high satellites
         } else if (satelliteAltitudeKm > 400) {
-          adjustedZoom = 5.0; // Fixed zoom for medium satellites
+          adjustedZoom = 4.0; // Fixed zoom for medium satellites
         } else {
           adjustedZoom = 5.5; // Fixed zoom for lower satellites
         }
@@ -1777,9 +2015,9 @@ export class DeckSatelliteTracker {
       return;
     }
         
-    searchInput.addEventListener('input', (e) => {
+    searchInput.addEventListener('input', async (e) => {
       const query = (e.target as HTMLInputElement).value.toLowerCase().trim();
-      this.performSearch(query, searchResults);
+      await this.performSearch(query, searchResults);
     });
     
     document.addEventListener('click', (e) => {
@@ -1789,27 +2027,83 @@ export class DeckSatelliteTracker {
     });
   }
   
-  private performSearch(query: string, resultsContainer: HTMLDivElement) {
+  private async performSearch(query: string, resultsContainer: HTMLDivElement) {
     resultsContainer.innerHTML = '';
     
     if (query.length < 2) return;
-        
-    const matches = Array.from(this.satellites.values())
-      .filter(satellite => {
-        // Apply type filter first
-        if (!this.enabledSatelliteTypes.has(satellite.type)) return false;
-        
-        // Search shows all satellites to allow switching between them
-        // Note: When selected, only that satellite will be visible
-        
-        // Apply search filter
-        return ((satellite.name || satellite.id).toLowerCase().includes(query) ||
-                satellite.id.toLowerCase().includes(query) ||
-                satellite.type.toLowerCase().includes(query) ||
-                (satellite.alternateName && satellite.alternateName.toLowerCase().includes(query)));
-      })
-      .sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id))
-      .slice(0, 10);
+    
+    // Show loading indicator
+    resultsContainer.innerHTML = '<div style="padding: 8px; color: #999;">Searching satellites...</div>';
+    
+    try {
+      // Load all satellites for search if not already loaded
+      await this.loadAllSatellitesForSearch();
+      
+      // Clear loading indicator
+      resultsContainer.innerHTML = '';
+      
+    } catch (error) {
+      // If loading fails, show error and use any cached data
+      console.warn('Failed to load all satellites for search:', error);
+      resultsContainer.innerHTML = '<div style="padding: 8px; color: #ff9999;">Failed to load satellite database</div>';
+      return;
+    }
+    
+    // Search in the full satellite database (not just active satellites)
+    console.log(`🔍 Searching ${this.searchSatelliteDatabase.size} satellites for "${query}"`);
+    console.log(`🔍 Active satellites: ${this.satellites.size}`);
+    console.log(`🔍 Search database loaded: ${this.searchSatellitesLoaded}`);
+    
+    // Debug: Show some sample satellites from search database
+    const sampleFromSearch = Array.from(this.searchSatelliteDatabase.values()).slice(0, 5);
+    console.log(`🔍 Sample from search database:`, sampleFromSearch.map(sat => sat.name || sat.id));
+    
+    // Debug: If search database is empty, fall back to active satellites
+    const databaseToSearch = this.searchSatelliteDatabase.size > 0 ? this.searchSatelliteDatabase : this.satellites;
+    console.log(`🔍 Using ${databaseToSearch === this.searchSatelliteDatabase ? 'search database' : 'active satellites'} with ${databaseToSearch.size} entries`);
+    
+    // Let's search for the query in a few different ways for debugging
+    console.log(`🔍 Searching for "${query}" in satellite names...`);
+    let foundCount = 0;
+    const matches: any[] = [];
+    
+    for (const satellite of databaseToSearch.values()) {
+      // Apply search filter only - no type filtering
+      const name = (satellite.name || satellite.id).toLowerCase();
+      const id = satellite.id.toLowerCase();
+      const type = satellite.type.toLowerCase();
+      const altName = (satellite.alternateName || '').toLowerCase();
+      
+      const nameMatch = name.includes(query);
+      const idMatch = id.includes(query);
+      const typeMatch = type.includes(query);
+      const altNameMatch = altName.includes(query);
+      
+      const isMatch = nameMatch || idMatch || typeMatch || altNameMatch;
+      
+      if (isMatch) {
+        foundCount++;
+        if (foundCount <= 20) { // Only add first 20 to results
+          matches.push(satellite);
+        }
+        if (foundCount <= 5) { // Log first 5 matches for debugging
+          console.log(`🔍 Match ${foundCount}: ${satellite.name || satellite.id} (ID: ${satellite.id}, Type: ${satellite.type})`);
+        }
+      }
+      
+      // Stop after checking a reasonable number if we have enough matches
+      if (foundCount >= 50) break;
+    }
+    
+    console.log(`🔍 Found ${foundCount} total matches for "${query}", showing first ${Math.min(foundCount, 20)}`);
+      
+    if (matches.length === 0) {
+      resultsContainer.innerHTML = '<div style="padding: 8px; color: #999;">No satellites found</div>';
+      return;
+    }
+    
+    // Sort the matches alphabetically
+    matches.sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
     
     matches.forEach(satellite => {
       const resultDiv = document.createElement('div');
@@ -1829,6 +2123,8 @@ export class DeckSatelliteTracker {
       `;
       
       resultDiv.addEventListener('click', () => {
+        // Load the selected satellite from search database into active satellites
+        this.loadSatelliteFromSearchDatabase(satellite.id);
         this.followSatellite(satellite.id);
         resultsContainer.innerHTML = '';
         (document.getElementById('satellite-search') as HTMLInputElement).value = satellite.name || satellite.id;
