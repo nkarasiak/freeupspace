@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2025-01-06
+
+### ✨ New Features
+- **User-Controllable Camera Bearing**: Users can now override automatic satellite direction tracking
+  - **Horizontal Drag Control**: Drag horizontally while tracking a satellite to manually control viewing angle
+  - **Automatic Mode**: Bearing automatically follows satellite movement direction by default
+  - **Manual Override**: First horizontal drag activates manual control with visual feedback
+  - **Reset to Auto**: Press `B` key to return to automatic satellite direction following
+
+### 🎮 User Experience
+- **Intuitive Controls**: Natural mouse drag interaction for bearing control while tracking
+- **Visual Feedback**: Clear messages when switching between automatic and manual bearing modes
+- **Seamless Transition**: Automatic reset to auto mode when tracking new satellites
+- **Responsive Design**: Only activates on significant horizontal movement to prevent accidental activation
+
+### 🛠️ Technical Improvements
+- Enhanced `SmoothCamera` class with user bearing control state management
+- Improved mouse interaction logic with bearing override detection
+- Better camera state synchronization between automatic and manual modes
+
 ## [0.2.2] - 2025-08-06
 
 ### ✨ New Features

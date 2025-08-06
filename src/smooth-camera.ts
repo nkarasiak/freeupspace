@@ -1,4 +1,8 @@
 // Ultra-smooth camera controller for video-like satellite tracking
+// Features:
+// - Automatic bearing based on satellite direction
+// - User-controllable bearing override (drag horizontally when tracking)
+// - Smooth interpolation between camera states
 import { Map as MapLibreMap } from 'maplibre-gl';
 import { PredictivePosition } from './smooth-tracker';
 
@@ -32,6 +36,10 @@ export class SmoothCamera {
   // Adaptive smoothing based on satellite speed
   private adaptiveSmoothingEnabled = true;
   private velocityBasedSmoothing = true;
+  
+  // User bearing control
+  private userControlledBearing = false;
+  private userBearing = 0;
 
   constructor(map: MapLibreMap) {
     this.map = map;
@@ -116,9 +124,11 @@ export class SmoothCamera {
       smoothingFactor
     );
 
-    // Calculate target bearing from satellite's movement direction
+    // Calculate target bearing - use user bearing if controlled, otherwise satellite direction
     let targetBearing = currentState.bearing; // Default to current bearing
-    if (this.targetPosition.bearing !== undefined) {
+    if (this.userControlledBearing) {
+      targetBearing = this.userBearing;
+    } else if (this.targetPosition.bearing !== undefined) {
       targetBearing = this.targetPosition.bearing;
     }
 
@@ -297,18 +307,42 @@ export class SmoothCamera {
     return this.isSmoothing && this.targetPosition !== null;
   }
 
+  // User bearing control methods
+  setUserControlledBearing(controlled: boolean, bearing?: number): void {
+    this.userControlledBearing = controlled;
+    if (controlled && bearing !== undefined) {
+      this.userBearing = bearing;
+    }
+  }
+
+  updateUserBearing(bearing: number): void {
+    if (this.userControlledBearing) {
+      this.userBearing = bearing;
+    }
+  }
+
+  isUserControlledBearing(): boolean {
+    return this.userControlledBearing;
+  }
+
+  getUserBearing(): number {
+    return this.userBearing;
+  }
+
   // Get camera performance stats
   getPerformanceStats(): {
     tracking: boolean;
     smoothingFactor: number;
     targetPosition: PredictivePosition | null;
     cameraState: CameraState;
+    userControlledBearing: boolean;
   } {
     return {
       tracking: this.isTracking(),
       smoothingFactor: this.calculateAdaptiveSmoothingFactor(),
       targetPosition: this.targetPosition,
-      cameraState: this.lastCameraState
+      cameraState: this.lastCameraState,
+      userControlledBearing: this.userControlledBearing
     };
   }
 }

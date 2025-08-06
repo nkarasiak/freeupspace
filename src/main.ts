@@ -267,6 +267,15 @@ class SatelliteTracker3D {
     }
   }
 
+  private resetBearingToAutomatic() {
+    const followingSatellite = this.satelliteTracker.getFollowingSatellite();
+    if (followingSatellite) {
+      const smoothCamera = this.satelliteTracker.getSmoothCamera();
+      smoothCamera.setUserControlledBearing(false);
+      this.showMessage('🧭 Bearing reset to automatic', 'info');
+    }
+  }
+
   private showMessage(message: string, type: 'success' | 'error' | 'warning' | 'info') {
     const messageDiv = document.createElement('div');
     messageDiv.style.cssText = `
@@ -368,6 +377,14 @@ class SatelliteTracker3D {
       if (e.key === 'Escape') {
         e.preventDefault();
         this.satelliteTracker.stopFollowing();
+      }
+      
+      // B key to reset bearing to automatic mode
+      if (e.key === 'b' || e.key === 'B') {
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.resetBearingToAutomatic();
+        }
       }
     });
     
@@ -720,9 +737,19 @@ class SatelliteTracker3D {
         this.map.setPitch(newPitch);
         
         // Control bearing with horizontal mouse movement (only in tracking mode)
-        if (isTracking) {
+        if (isTracking && Math.abs(deltaX) > 1) { // Only activate on significant horizontal movement
+          const smoothCamera = this.satelliteTracker.getSmoothCamera();
           const currentBearing = this.map.getBearing();
           const newBearing = (currentBearing + deltaX * 0.5) % 360;
+          
+          // Enable user-controlled bearing mode and show feedback on first use
+          if (!smoothCamera.isUserControlledBearing()) {
+            smoothCamera.setUserControlledBearing(true, newBearing);
+            this.showMessage('🧭 Manual bearing control active (Press B to reset)', 'info');
+          } else {
+            smoothCamera.updateUserBearing(newBearing);
+          }
+          
           this.map.setBearing(newBearing);
         }
         

@@ -1700,6 +1700,9 @@ export class DeckSatelliteTracker {
       this.smoothTracker.stopTracking();
       this.smoothCamera.stopSmoothTracking();
       
+      // Reset bearing to automatic mode when starting new satellite tracking
+      this.smoothCamera.setUserControlledBearing(false);
+      
       // Calculate camera position to focus on satellite's 3D position at altitude
       const satelliteAltitudeKm = satellite.altitude;
       const satelliteLat = satellite.position.lat;
@@ -2191,6 +2194,10 @@ export class DeckSatelliteTracker {
 
   getSatellites(): Map<string, SatelliteData> {
     return this.satellites;
+  }
+
+  getSmoothCamera(): SmoothCamera {
+    return this.smoothCamera;
   }
 
   getSearchDatabase(): Map<string, SatelliteData> {
