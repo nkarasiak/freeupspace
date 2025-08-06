@@ -5,7 +5,7 @@ export class SEOManager {
   private static readonly DEFAULT_TITLE = 'From Up There - Real-Time 3D Satellite Tracker';
   private static readonly DEFAULT_DESCRIPTION = 'Track 12,000+ satellites in real-time with stunning 3D visualization. Monitor the International Space Station, Starlink constellation, and scientific satellites orbiting Earth.';
   private static readonly DEFAULT_IMAGE = '/static/images/og-preview.png';
-  private static readonly BASE_URL = 'https://fromupthere.com';
+  private static readonly BASE_URL = 'https://www.fromupthe.re';
 
   /**
    * Update page meta tags when tracking a specific satellite
