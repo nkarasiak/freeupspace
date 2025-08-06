@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Main sitemap with homepage and featured satellites -->
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <!-- Satellite sitemaps (each containing ~2000 satellites) -->
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap-satellites-1.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap-satellites-2.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap-satellites-3.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap-satellites-4.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap-satellites-5.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <sitemap>
+    <loc>https://www.fromupthe.re/sitemap-satellites-6.xml</loc>
+    <lastmod>2025-01-06</lastmod>
+  </sitemap>
+  
+  <!-- Additional sitemap files will be generated dynamically based on total satellite count -->
+  <!-- Each file contains up to 2000 satellites from the Celestrak GP data feed -->
+  <!-- Total expected: ~6-8 sitemap files for 12,000+ satellites -->
+  
+</sitemapindex>
