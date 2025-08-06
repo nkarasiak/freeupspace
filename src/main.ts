@@ -326,19 +326,6 @@ class SatelliteTracker3D {
   }
 
   private setupEventListeners() {
-    const toggleBtn = document.getElementById('toggle-basemap');
-    const trackIssBtn = document.getElementById('track-iss');
-    const showStarlinkBtn = document.getElementById('show-starlink');
-    const pauseBtn = document.getElementById('pause-updates');
-    const satelliteTrackedOnlyBtn = document.getElementById('satellite-tracked-only');
-    const pitchSlider = document.getElementById('pitch-slider') as HTMLInputElement;
-    const pitchValue = document.getElementById('pitch-value') as HTMLSpanElement;
-
-    toggleBtn?.addEventListener('click', () => this.toggleBasemap());
-    trackIssBtn?.addEventListener('click', () => this.focusOnISS());
-    showStarlinkBtn?.addEventListener('click', () => this.toggleStarlinkVisibility());
-    pauseBtn?.addEventListener('click', () => this.togglePauseUpdates());
-    satelliteTrackedOnlyBtn?.addEventListener('click', () => this.toggleSatelliteTrackedOnly());
 
     // Handle night mode toggle from the new simplified cockpit
     document.addEventListener('nightModeToggle', () => {
@@ -388,21 +375,6 @@ class SatelliteTracker3D {
       }
     });
     
-    // Direct pitch control that bypasses Deck.gl limitation
-    pitchSlider?.addEventListener('input', (e) => {
-      const pitch = parseInt((e.target as HTMLInputElement).value);
-      pitchValue.textContent = pitch.toString();
-      
-      // Directly set MapLibre GL pitch (bypasses Deck.gl 60° limit)
-      this.map.setPitch(pitch);
-    });
-    
-    // Update slider when map pitch changes
-    this.map.on('pitch', () => {
-      const currentPitch = Math.round(this.map.getPitch());
-      if (pitchSlider) pitchSlider.value = currentPitch.toString();
-      if (pitchValue) pitchValue.textContent = currentPitch.toString();
-    });
     
     // Add custom Ctrl+drag pitch handling that uses MapLibre directly
     this.setupCustomPitchControl();
@@ -417,41 +389,6 @@ class SatelliteTracker3D {
     }
   }
 
-  private focusOnISS() {
-    const iss = this.satelliteTracker.getSatellites().get('iss-zarya');
-    if (iss) {
-      // Use the follow functionality instead of just flying to it
-      this.satelliteTracker.followSatellite('iss-zarya');
-    }
-  }
-
-  private toggleStarlinkVisibility() {
-    this.satelliteTracker.toggleOrbits();
-  }
-
-  private togglePauseUpdates() {
-    const isPaused = this.satelliteTracker.togglePause();
-    const pauseBtn = document.getElementById('pause-updates');
-    if (pauseBtn) {
-      pauseBtn.textContent = isPaused ? 'Resume Updates' : 'Pause Updates';
-    }
-  }
-
-  private toggleSatelliteTrackedOnly() {
-    const isTracking = this.satelliteTracker.getFollowingSatellite() !== null;
-    
-    // Don't allow toggling if not tracking any satellite
-    if (!isTracking) {
-      return;
-    }
-    
-    const currentState = this.satelliteTracker.getShowTrackedSatelliteOnly();
-    const newState = !currentState;
-    this.satelliteTracker.setShowTrackedSatelliteOnly(newState);
-    
-    // Update button appearance - this will be handled by updateSatelliteTrackedOnlyButton
-    this.updateSatelliteTrackedOnlyButton();
-  }
 
   private startTracking() {
     this.map.on('load', () => {
@@ -769,16 +706,12 @@ class SatelliteTracker3D {
 
   private updateUI() {
     const satellites = this.satelliteTracker.getSatellites();
-    const totalCount = satellites.size;
     const followingSatellite = this.satelliteTracker.getFollowingSatellite();
 
     // Update status displays
-    const satelliteCountElement = document.getElementById('satellite-count');
     const trackedAltitudeElement = document.getElementById('tracked-altitude');
     const trackedNameElement = document.getElementById('tracked-name');
     const trackedSpeedElement = document.getElementById('tracked-speed');
-
-    if (satelliteCountElement) satelliteCountElement.textContent = totalCount.toString();
     
     // Update search component with current following satellite
     this.searchComponent?.setFollowingSatellite(followingSatellite);
@@ -814,37 +747,6 @@ class SatelliteTracker3D {
       if (trackedSpeedElement) trackedSpeedElement.textContent = '---';
     }
     
-    // Update satellite tracked only button state
-    this.updateSatelliteTrackedOnlyButton();
-  }
-
-  private updateSatelliteTrackedOnlyButton() {
-    const btn = document.getElementById('satellite-tracked-only');
-    if (!btn) return;
-    
-    const isTrackedOnly = this.satelliteTracker.getShowTrackedSatelliteOnly();
-    const isTracking = this.satelliteTracker.getFollowingSatellite() !== null;
-    
-    if (isTrackedOnly && isTracking) {
-      btn.textContent = '🎯 Show all satellites';
-      btn.style.background = 'rgba(0, 255, 136, 0.15)';
-      btn.style.borderColor = 'rgba(0, 255, 136, 0.3)';
-    } else {
-      btn.textContent = '🎯 Satellite tracked only';
-      btn.style.background = '';
-      btn.style.borderColor = '';
-    }
-    
-    // Disable button when not tracking any satellite
-    if (!isTracking) {
-      btn.style.opacity = '0.5';
-      btn.style.cursor = 'not-allowed';
-      btn.title = 'Track a satellite first to use this feature';
-    } else {
-      btn.style.opacity = '';
-      btn.style.cursor = '';
-      btn.title = isTrackedOnly ? 'Show all satellites' : 'Hide all satellites except tracked one';
-    }
   }
 }
 

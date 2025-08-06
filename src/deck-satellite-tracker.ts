@@ -674,7 +674,6 @@ export class DeckSatelliteTracker {
     // Setup search and filters after satellites are loaded
     setTimeout(() => {
       this.setupSearchFunctionality();
-      this.setupFilterFunctionality();
       this.setupKeyboardShortcuts();
       this.setupCockpitToggle();
     }, 100);
@@ -2149,47 +2148,6 @@ export class DeckSatelliteTracker {
     }
   }
 
-  private setupFilterFunctionality() {
-    const filterCheckboxes = {
-      'scientific': document.getElementById('filter-scientific') as HTMLInputElement,
-      'communication': document.getElementById('filter-communication') as HTMLInputElement,
-      'earth-observation': document.getElementById('filter-earth-observation') as HTMLInputElement,
-      'weather': document.getElementById('filter-weather') as HTMLInputElement,
-      'navigation': document.getElementById('filter-navigation') as HTMLInputElement
-    };
-
-    const countElements = {
-      'scientific': document.getElementById('count-scientific') as HTMLElement,
-      'communication': document.getElementById('count-communication') as HTMLElement,
-      'earth-observation': document.getElementById('count-earth-observation') as HTMLElement,
-      'weather': document.getElementById('count-weather') as HTMLElement,
-      'navigation': document.getElementById('count-navigation') as HTMLElement
-    };
-
-    // Setup event listeners for filter checkboxes
-    Object.entries(filterCheckboxes).forEach(([type, checkbox]) => {
-      if (checkbox) {
-        checkbox.addEventListener('change', (e) => {
-          const enabled = (e.target as HTMLInputElement).checked;
-          this.setSatelliteTypeEnabled(type, enabled);
-        });
-      }
-    });
-
-    // Update counts periodically
-    const updateCounts = () => {
-      const counts = this.getSatelliteCountsByType();
-      Object.entries(countElements).forEach(([type, element]) => {
-        if (element) {
-          element.textContent = counts[type]?.toString() || '0';
-        }
-      });
-    };
-
-    // Update counts initially and every 5 seconds
-    updateCounts();
-    setInterval(updateCounts, 5000);
-  }
   
 
   getSatellites(): Map<string, SatelliteData> {
@@ -2397,14 +2355,7 @@ Click      Select/follow satellite
   }
 
   private setupCockpitToggle() {
-    const toggleButton = document.getElementById('cockpit-toggle');
     const showButton = document.getElementById('show-cockpit-btn');
-    
-    if (toggleButton) {
-      toggleButton.addEventListener('click', () => {
-        this.toggleCockpit();
-      });
-    }
     
     if (showButton) {
       showButton.addEventListener('click', () => {

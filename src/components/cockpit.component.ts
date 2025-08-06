@@ -133,13 +133,9 @@ export class CockpitComponent {
   }
 
   updateStatus(satellites: Map<string, SatelliteData>, followingSatellite: string | null): void {
-    const totalCount = satellites.size;
-    const satelliteCountElement = document.getElementById('satellite-count');
     const trackedAltitudeElement = document.getElementById('tracked-altitude');
     const trackedNameElement = document.getElementById('tracked-name');
     const trackedSpeedElement = document.getElementById('tracked-speed');
-
-    if (satelliteCountElement) satelliteCountElement.textContent = totalCount.toString();
     
     // Update tracked satellite information
     if (followingSatellite) {
