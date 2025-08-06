@@ -486,7 +486,7 @@ export class SatelliteRenderer {
       }
     }
     
-    const finalScaleFactor = scaleFactor || 1.0;
+    const finalScaleFactor = scaleFactor || 2.0;
     size *= finalScaleFactor;
     
     return Math.max(size, 8);

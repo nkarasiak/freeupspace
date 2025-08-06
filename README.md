@@ -24,8 +24,9 @@ A real-time 3D satellite tracking application that visualizes satellites in Eart
 ### 🎨 Immersive 3D Visualization
 - **WebGL-powered rendering** with Deck.gl for high-performance graphics
 - **Custom satellite icons** for major satellites (ISS, Starlink, Sentinel, etc.)
-- **Dynamic scaling** based on satellite type and importance
+- **Dynamic scaling** with 2x larger default satellite size for better visibility
 - **Orbit visualization** showing satellite trajectories
+- **Automatic day/night basemap** that switches based on satellite's local solar time
 - **Level-of-detail (LOD) system** for smooth performance with thousands of satellites
 
 ### 📱 Intuitive Interface
@@ -79,7 +80,6 @@ npm run preview
 - **Mouse drag** - Rotate the Earth view
 - **Mouse wheel** - Zoom in/out
 - **`/` key** - Open command palette for satellite search
-- **`C` key** - Toggle cockpit visibility
 - **Click satellite name** - Quick search access
 
 ### Satellite Tracking

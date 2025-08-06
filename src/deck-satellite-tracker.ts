@@ -30,7 +30,7 @@ export interface SatelliteData {
   defaultBearing?: number; // Optional default camera bearing when tracking this satellite (0-360 degrees)
   defaultZoom?: number; // Optional default zoom level when tracking this satellite
   defaultPitch?: number; // Optional default pitch angle when tracking this satellite
-  scaleFactor?: number; // Optional scale factor for satellite size (default: 1.0)
+  scaleFactor?: number; // Optional scale factor for satellite size (default: 2.0)
 }
 
 export interface SatellitePointData {
@@ -433,7 +433,7 @@ export class DeckSatelliteTracker {
         defaultBearing: satelliteConfig?.defaultBearing,
         defaultZoom: satelliteConfig?.defaultZoom,
         defaultPitch: satelliteConfig?.defaultPitch,
-        scaleFactor: satelliteConfig?.scaleFactor || 1.0,
+        scaleFactor: satelliteConfig?.scaleFactor || 2.0,
         position: new LngLat(position.longitude, position.latitude),
         altitude: position.altitude,
         velocity: position.velocity
@@ -505,7 +505,7 @@ export class DeckSatelliteTracker {
           defaultBearing: satelliteConfig?.defaultBearing,
           defaultZoom: satelliteConfig?.defaultZoom,
           defaultPitch: satelliteConfig?.defaultPitch,
-          scaleFactor: satelliteConfig?.scaleFactor || 1.0,
+          scaleFactor: satelliteConfig?.scaleFactor || 2.0,
           position: new LngLat(position.longitude, position.latitude),
           altitude: position.altitude,
           velocity: position.velocity
@@ -627,7 +627,7 @@ export class DeckSatelliteTracker {
             defaultBearing: satelliteConfig?.defaultBearing,
             defaultZoom: satelliteConfig?.defaultZoom,
             defaultPitch: satelliteConfig?.defaultPitch,
-            scaleFactor: satelliteConfig?.scaleFactor || 1.0,
+            scaleFactor: satelliteConfig?.scaleFactor || 2.0,
             position: new LngLat(position.longitude, position.latitude),
             altitude: position.altitude,
             velocity: position.velocity
@@ -1385,7 +1385,7 @@ export class DeckSatelliteTracker {
     }
     
     // Apply satellite-specific scale factor
-    const finalScaleFactor = scaleFactor || 1.0;
+    const finalScaleFactor = scaleFactor || 2.0;
     size *= finalScaleFactor;
     
     // Minimum size to ensure visibility

@@ -1,7 +1,6 @@
 import { SatelliteData } from '../types/satellite';
 
 export class CockpitComponent {
-  private isHidden = false;
   private commandPalette?: any; // Will hold reference to CommandPalette instance
   
   constructor() {
@@ -14,23 +13,7 @@ export class CockpitComponent {
   }
 
   private setupEventListeners(): void {
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      if (document.activeElement?.tagName === 'INPUT') {
-        return;
-      }
-      
-      if (e.key === 'c' || e.key === 'C') {
-        if (!e.ctrlKey && !e.metaKey) {
-          e.preventDefault();
-          this.toggleCockpit();
-        }
-      }
-    });
-
-    // Show cockpit button
-    const showCockpitBtn = document.getElementById('show-cockpit-btn');
-    showCockpitBtn?.addEventListener('click', () => this.showCockpit());
+    // No cockpit hiding functionality needed
   }
 
   private setupDropdownFunctionality(): void {
@@ -153,33 +136,6 @@ export class CockpitComponent {
     }
   }
 
-  private toggleCockpit(): void {
-    const cockpitPanel = document.getElementById('cockpit-panel');
-    const showCockpitBtn = document.getElementById('show-cockpit-btn');
-    
-    if (cockpitPanel && showCockpitBtn) {
-      this.isHidden = !this.isHidden;
-      
-      if (this.isHidden) {
-        cockpitPanel.classList.add('hidden');
-        showCockpitBtn.style.display = 'flex';
-      } else {
-        cockpitPanel.classList.remove('hidden');
-        showCockpitBtn.style.display = 'none';
-      }
-    }
-  }
-
-  private showCockpit(): void {
-    const cockpitPanel = document.getElementById('cockpit-panel');
-    const showCockpitBtn = document.getElementById('show-cockpit-btn');
-    
-    if (cockpitPanel && showCockpitBtn) {
-      this.isHidden = false;
-      cockpitPanel.classList.remove('hidden');
-      showCockpitBtn.style.display = 'none';
-    }
-  }
 
   showMessage(message: string, type: 'success' | 'error' | 'warning' | 'info'): void {
     const messageDiv = document.createElement('div');

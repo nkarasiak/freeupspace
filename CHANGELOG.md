@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-01-06
+
+### 🌍 New Features
+- **Automatic Night Mode Basemap**: Basemap now automatically switches between day and night tiles based on satellite's local solar time
+  - **Solar Calculator**: New utility calculates solar elevation and local time at satellite positions
+  - **Real-time Switching**: Basemap changes automatically when satellite passes from day to night or vice versa
+  - **Local Time Logging**: Console logs satellite's local time in 24-hour format with solar elevation and day/night status every 5 seconds
+  - **Smart Detection**: Uses astronomical calculations to determine if sun is above or below horizon at satellite's location
+
+### 🎛️ UI Improvements  
+- **Simplified Cockpit**: Removed cockpit hide/show button - cockpit is now always visible
+  - **No More Toggle**: Removed C key shortcut and show cockpit button
+  - **Cleaner Interface**: Eliminated unnecessary UI complexity and related CSS
+
+### 🛰️ Satellite Enhancements
+- **Larger Default Satellites**: Increased default satellite scale factor from 1.0x to 2.0x for better visibility
+  - **More Visible**: All satellites now appear twice as large by default
+  - **Customizable**: Individual satellites can still override with custom scaleFactor values
+
+### 🔧 Technical Improvements
+- **Code Cleanup**: Removed unused cockpit hiding functionality and related event handlers
+- **Type Safety**: All changes maintain full TypeScript compliance
+- **Performance**: Optimized basemap switching logic to only update when day/night state changes
+
 ## [0.2.4] - 2025-01-06
 
 ### 🧹 Code Cleanup

@@ -6,11 +6,13 @@ import { CommandPalette } from './command-palette';
 import { SearchComponent } from './components/search.component';
 import { CockpitComponent } from './components/cockpit.component';
 import { SEOManager } from './seo-manager';
+import { SolarCalculator } from './utils/solar-calculator';
 
 class SatelliteTracker3D {
   private map!: MapLibreMap;
   private satelliteTracker!: DeckSatelliteTracker;
   private isDayMode = true;
+  private autoNightMode = false; // Auto switch based on satellite position
   private isGlobeMode = true; // Start with globe projection
   private urlState = new URLState();
   private commandPalette!: CommandPalette;
@@ -332,6 +334,11 @@ class SatelliteTracker3D {
       this.toggleBasemap();
     });
     
+    // Handle auto night mode toggle
+    document.addEventListener('autoNightModeToggle', () => {
+      this.toggleAutoNightMode();
+    });
+    
     // Add keyboard shortcut for projection toggle
     document.addEventListener('keydown', (e) => {
       // Only respond to shortcuts if no input elements are focused
@@ -373,6 +380,14 @@ class SatelliteTracker3D {
           this.resetBearingToAutomatic();
         }
       }
+      
+      // N key to toggle auto night mode
+      if (e.key === 'n' || e.key === 'N') {
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          this.toggleAutoNightMode();
+        }
+      }
     });
     
     
@@ -381,11 +396,57 @@ class SatelliteTracker3D {
   }
 
   private toggleBasemap() {
+    // Note: This manual toggle will be overridden by automatic switching
     this.isDayMode = !this.isDayMode;
     if (this.isDayMode) {
       this.addDayBasemap();
+      this.showMessage('☀️ Day basemap enabled (will auto-switch based on satellite)', 'info');
     } else {
       this.addNightBasemap();
+      this.showMessage('🌙 Night basemap enabled (will auto-switch based on satellite)', 'info');
+    }
+  }
+
+  private toggleAutoNightMode() {
+    this.autoNightMode = !this.autoNightMode;
+    if (this.autoNightMode) {
+      this.showMessage('🌍 Auto night mode enabled', 'info');
+      this.updateBasemapForSatellite(); // Update immediately
+    } else {
+      this.showMessage('🌍 Auto night mode disabled', 'info');
+    }
+  }
+
+  private updateBasemapForSatellite() {
+    // Always update basemap based on satellite's local time (no flag needed)
+
+    const followingSatellite = this.satelliteTracker.getFollowingSatellite();
+    if (!followingSatellite) return;
+
+    const satellites = this.satelliteTracker.getSatellites();
+    const satellite = satellites.get(followingSatellite);
+    
+    if (satellite && satellite.position) {
+      const currentTime = new Date();
+      const localTime = SolarCalculator.getLocalTime(satellite.position.lng, currentTime);
+      const solarElevation = SolarCalculator.calculateSolarElevation(
+        satellite.position.lat,
+        satellite.position.lng,
+        currentTime
+      );
+      const isNight = solarElevation < 0;
+
+      // Only change basemap if the day/night state has changed
+      if (isNight !== !this.isDayMode) {
+        this.isDayMode = !isNight;
+        if (this.isDayMode) {
+          this.addDayBasemap();
+          console.log(`🌍 AUTO-SWITCHED to DAY basemap for ${satellite.name || followingSatellite} (local time: ${localTime}, solar elevation: ${solarElevation.toFixed(1)}°)`);
+        } else {
+          this.addNightBasemap();
+          console.log(`🌙 AUTO-SWITCHED to NIGHT basemap for ${satellite.name || followingSatellite} (local time: ${localTime}, solar elevation: ${solarElevation.toFixed(1)}°)`);
+        }
+      }
     }
   }
 
@@ -514,7 +575,10 @@ class SatelliteTracker3D {
       }
       
       this.updateUI();
-      setInterval(() => this.updateUI(), 5000);
+      setInterval(() => {
+        this.updateUI();
+        this.updateBasemapForSatellite(); // Check for day/night changes
+      }, 5000);
     });
   }
 
@@ -739,6 +803,8 @@ class SatelliteTracker3D {
         if (trackedAltitudeElement) trackedAltitudeElement.textContent = trackedSatellite.altitude.toFixed(0);
         if (trackedNameElement) trackedNameElement.textContent = trackedSatellite.shortname || trackedSatellite.name;
         if (trackedSpeedElement) trackedSpeedElement.textContent = trackedSatellite.velocity.toFixed(2);
+        
+        // Log local time at satellite position
       }
     } else {
       // No satellite being tracked - show defaults
